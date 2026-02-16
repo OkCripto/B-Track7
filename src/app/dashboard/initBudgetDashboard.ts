@@ -2,7 +2,7 @@
 /* eslint-disable */
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 type BudgetInitOptions = {
-  initialPage?: "tracker" | "assets" | "all-transactions" | "analytics";
+  initialPage?: "tracker" | "assets" | "all-transactions" | "analytics" | "settings";
 };
 
 export function initBudgetDashboard(options: BudgetInitOptions = {}) {
@@ -14,7 +14,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // STATE MANAGEMENT
     // -------------------------------------------------------------------------
     
-    const PREDEFINED_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef'];
+    const PREDEFINED_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#0ea5e9', '#38bdf8', '#22d3ee', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e'];
     const getRandomColor = () => PREDEFINED_COLORS[Math.floor(Math.random() * PREDEFINED_COLORS.length)];
     const createDefaultState = () => ({
         assets: [],
@@ -22,8 +22,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         categories: [],
         incomeCategories: [],
         expenseCategories: [],
+        settings: {
+            monthlySavingsTarget: 500
+        },
         ui: {
-            currentPage: 'tracker', // 'tracker', 'assets', 'all-transactions', or 'analytics'
+            currentPage: 'tracker', // 'tracker', 'assets', 'all-transactions', 'analytics', or 'settings'
             formMode: 'add', // 'add' or 'edit'
             editingId: null,
             activeType: 'expense',
@@ -47,13 +50,15 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         'tracker': '/dashboard',
         'assets': '/dashboard/assets',
         'all-transactions': '/dashboard/transactions',
-        'analytics': '/dashboard/analytics'
+        'analytics': '/dashboard/analytics',
+        'settings': '/dashboard/settings'
     };
 
     const pageFromPath = (path) => {
         if (path.startsWith('/dashboard/assets')) return 'assets';
         if (path.startsWith('/dashboard/transactions')) return 'all-transactions';
         if (path.startsWith('/dashboard/analytics')) return 'analytics';
+        if (path.startsWith('/dashboard/settings')) return 'settings';
         return 'tracker';
     };
 
@@ -107,13 +112,18 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const user = await requireUser();
         if (!user) return;
 
-        const [assetsRes, categoriesRes, transactionsRes] = await Promise.all([
+        const [assetsRes, categoriesRes, transactionsRes, settingsRes] = await Promise.all([
             supabase.from('assets').select('*').order('created_at', { ascending: true }),
             supabase.from('categories').select('*').order('created_at', { ascending: true }),
             supabase
                 .from('transactions')
                 .select('id, type, amount, description, note, transaction_date, created_at, asset_id, category:categories(name)')
-                .order('transaction_date', { ascending: false })
+                .order('transaction_date', { ascending: false }),
+            supabase
+                .from('user_settings')
+                .select('monthly_savings_target')
+                .eq('user_id', currentUserId)
+                .maybeSingle()
         ]);
 
         if (assetsRes.error || categoriesRes.error || transactionsRes.error) {
@@ -142,6 +152,27 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             category: categoryName || 'Unknown'
         });
         });
+
+        if (settingsRes?.error) {
+            console.error('Failed to load settings', settingsRes.error);
+        } else if (settingsRes?.data?.monthly_savings_target != null) {
+            state.settings.monthlySavingsTarget = Number(settingsRes.data.monthly_savings_target);
+        } else {
+            const fallbackTarget = Number(state.settings.monthlySavingsTarget || 500);
+            const { data: insertedSettings, error: insertError } = await supabase
+                .from('user_settings')
+                .insert({
+                    user_id: currentUserId,
+                    monthly_savings_target: fallbackTarget
+                })
+                .select('monthly_savings_target')
+                .single();
+            if (insertError) {
+                console.error('Failed to create settings row', insertError);
+            } else if (insertedSettings?.monthly_savings_target != null) {
+                state.settings.monthlySavingsTarget = Number(insertedSettings.monthly_savings_target);
+            }
+        }
     };
 
     const saveState = () => {};
@@ -162,10 +193,19 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const pageAssets = document.getElementById('page-assets');
     const pageAllTransactions = document.getElementById('page-all-transactions');
     const pageAnalytics = document.getElementById('page-analytics');
+    const pageSettings = document.getElementById('page-settings');
     
     const incomeAmountEl = document.getElementById('income-amount');
+    const incomeDeltaEl = document.getElementById('income-delta');
     const expenseAmountEl = document.getElementById('expense-amount');
+    const expenseDeltaEl = document.getElementById('expense-delta');
     const netWorthAmountEl = document.getElementById('net-worth-amount');
+    const netWorthDeltaEl = document.getElementById('networth-delta');
+    const expenseCategoryBarsEl = document.getElementById('expense-category-bars');
+    const expenseCategoryEmptyEl = document.getElementById('expense-category-empty');
+    const savingsDeltaEl = document.getElementById('savings-delta');
+    const cashflowTrendCanvas = document.getElementById('cashflow-trend-chart');
+    const cashflowTrendEmptyEl = document.getElementById('cashflow-trend-empty');
     const monthlySavingsAmountEl = document.getElementById('monthly-savings-amount');
 
     const form = document.getElementById('transaction-form');
@@ -206,8 +246,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
  
     const manageCategoriesBtn = document.getElementById('manage-categories-btn');
     const dataOptionsBtn = document.getElementById('data-options-btn');
+    const viewAllTransactionsBtn = document.getElementById('view-all-transactions-btn');
     const modalContainer = document.getElementById('modal-container');
     const modalContent = document.getElementById('modal-content');
+    const settingsForm = document.getElementById('settings-form');
+    const monthlySavingsTargetInput = document.getElementById('monthly-savings-target');
+    const settingsStatus = document.getElementById('settings-status');
 
     // Analytics elements
     const analyticsPeriodSelect = document.getElementById('analytics-period');
@@ -216,6 +260,9 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const analyticsSavingsEl = document.getElementById('analytics-savings');
     const analyticsIncomeEl = document.getElementById('analytics-income');
     const analyticsExpensesEl = document.getElementById('analytics-expenses');
+    const analyticsTransactionsCountEl = document.getElementById('analytics-transactions-count');
+    const analyticsAverageExpenseEl = document.getElementById('analytics-average-expense');
+    const analyticsSavingsRateEl = document.getElementById('analytics-savings-rate');
     const chartTooltip = document.getElementById('chart-tooltip');
 
     // -------------------------------------------------------------------------
@@ -244,6 +291,24 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         });
     };
 
+    const applyDelta = (el, current, previous) => {
+        if (!el) return;
+        if (previous === 0) {
+            if (current === 0) {
+                el.textContent = '0.0%';
+                el.className = 'font-semibold text-muted-foreground';
+                return;
+            }
+            el.textContent = '+100.0%';
+            el.className = 'font-semibold text-emerald-400';
+            return;
+        }
+        const change = ((current - previous) / Math.abs(previous)) * 100;
+        const isUp = change >= 0;
+        el.textContent = `${isUp ? '+' : ''}${change.toFixed(1)}%`;
+        el.className = `font-semibold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`;
+    };
+
     // -------------------------------------------------------------------------
     // RENDER FUNCTIONS (Updating the UI)
     // -------------------------------------------------------------------------
@@ -252,6 +317,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         renderSummary();
         renderTransactionList(state.transactions, transactionListContainer, noTransactionsMsg); // Show all for sorting demo
         renderForm();
+        renderSettings();
         renderPage();
     };
     
@@ -268,35 +334,222 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const isVisible = state.ui.isBalanceVisible;
         const censoredText = '₹ ******';
 
-        // Calculate totals for the current month for the income/expense cards
-        const monthlyIncome = state.transactions
-            .filter(t => {
-                const transactionDate = new Date(t.date);
-                return t.type === 'income' && t.category !== 'Internal Transfer' && transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === currentMonth;
-            })
-            .reduce((sum, t) => sum + t.amount, 0);
+        let monthlyIncome = 0;
+        let monthlyExpense = 0;
+        const monthTransactions = [];
+        const expenseByCategory = new Map();
+        const categoryColorMap = new Map();
 
-        const monthlyExpense = state.transactions
-            .filter(t => {
-                const transactionDate = new Date(t.date);
-                return t.type === 'expense' && t.category !== 'Internal Transfer' && transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === currentMonth;
-            })
-            .reduce((sum, t) => sum + t.amount, 0);
-        
+        state.categories.forEach(cat => {
+            if (cat.type === 'expense') {
+                categoryColorMap.set(cat.name, cat.color || '#38bdf8');
+            }
+        });
+
+        state.transactions.forEach(t => {
+            const transactionDate = new Date(t.date);
+            if (transactionDate.getFullYear() !== currentYear || transactionDate.getMonth() !== currentMonth) return;
+            if (t.category === 'Internal Transfer') return;
+
+            monthTransactions.push(t);
+            if (t.type === 'income') {
+                monthlyIncome += t.amount;
+            } else {
+                monthlyExpense += t.amount;
+                const color = categoryColorMap.get(t.category) || '#38bdf8';
+                const current = expenseByCategory.get(t.category) || { amount: 0, color };
+                expenseByCategory.set(t.category, { amount: current.amount + t.amount, color: current.color || color });
+            }
+        });
+
         const monthlySavings = monthlyIncome - monthlyExpense;
+
+        const prevDate = new Date(currentYear, currentMonth - 1, 1);
+        const prevYear = prevDate.getFullYear();
+        const prevMonth = prevDate.getMonth();
+        let prevIncome = 0;
+        let prevExpense = 0;
+
+        state.transactions.forEach(t => {
+            const transactionDate = new Date(t.date);
+            if (transactionDate.getFullYear() !== prevYear || transactionDate.getMonth() !== prevMonth) return;
+            if (t.category === 'Internal Transfer') return;
+            if (t.type === 'income') {
+                prevIncome += t.amount;
+            } else {
+                prevExpense += t.amount;
+            }
+        });
+
+        const prevSavings = prevIncome - prevExpense;
 
         // Calculate Net Worth
         const netWorth = state.assets.reduce((sum, asset) => sum + asset.balance, 0);
+        const prevNetWorth = netWorth - monthlySavings;
 
         incomeAmountEl.textContent = isVisible ? formatCurrency(monthlyIncome) : censoredText;
         expenseAmountEl.textContent = isVisible ? formatCurrency(monthlyExpense) : censoredText;
         monthlySavingsAmountEl.textContent = isVisible ? formatCurrency(monthlySavings) : censoredText;
         netWorthAmountEl.textContent = isVisible ? formatCurrency(netWorth) : censoredText;
-        
-        monthlySavingsAmountEl.className = `text-3xl font-bold ${monthlySavings >= 0 ? 'text-purple-600' : 'text-orange-500'}`;
-        netWorthAmountEl.className = `text-3xl font-bold ${netWorth >= 0 ? 'text-blue-600' : 'text-orange-500'}`;
-        
+
+        renderExpenseCategoryBars(expenseByCategory, monthlyExpense, isVisible, censoredText);
+        renderSavingsTrendChart(monthTransactions, currentYear, currentMonth, state.settings.monthlySavingsTarget);
+        applyDelta(incomeDeltaEl, monthlyIncome, prevIncome);
+        applyDelta(expenseDeltaEl, monthlyExpense, prevExpense);
+        applyDelta(savingsDeltaEl, monthlySavings, prevSavings);
+        applyDelta(netWorthDeltaEl, netWorth, prevNetWorth);
+
         renderVisibilityToggle();
+    };
+
+    const renderSettings = () => {
+        if (!monthlySavingsTargetInput) return;
+        const targetValue = Number(state.settings.monthlySavingsTarget ?? 500);
+        if (document.activeElement !== monthlySavingsTargetInput) {
+            monthlySavingsTargetInput.value = Number.isFinite(targetValue) ? String(targetValue) : '500';
+        }
+        if (settingsStatus) {
+            settingsStatus.textContent = '';
+        }
+    };
+
+    const renderExpenseCategoryBars = (categoryTotals, totalExpense, isVisible, censoredText) => {
+        if (!expenseCategoryBarsEl || !expenseCategoryEmptyEl) return;
+        expenseCategoryBarsEl.innerHTML = '';
+
+        if (!totalExpense || categoryTotals.size === 0) {
+            expenseCategoryEmptyEl.classList.remove('hidden');
+            return;
+        }
+
+        expenseCategoryEmptyEl.classList.add('hidden');
+
+        const entries = Array.from(categoryTotals.entries())
+            .sort((a, b) => b[1].amount - a[1].amount)
+            .slice(0, 4);
+
+        entries.forEach(([name, details]) => {
+            const amount = details.amount || 0;
+            const percent = totalExpense > 0 ? Math.round((amount / totalExpense) * 100) : 0;
+            const barColor = details.color || '#38bdf8';
+            const row = document.createElement('div');
+            row.className = 'space-y-2';
+            row.innerHTML = `
+                <div class="flex items-center justify-between text-xs text-muted-foreground">
+                    <span class="text-sm font-medium text-foreground">${name}</span>
+                    <span>${isVisible ? formatCurrency(amount) : censoredText} &bull; ${percent}%</span>
+                </div>
+                <div class="h-2 rounded-full bg-muted/50 overflow-hidden">
+                    <div class="h-full" style="width: ${percent}%; background-color: ${barColor};"></div>
+                </div>
+            `;
+            expenseCategoryBarsEl.appendChild(row);
+        });
+    };
+
+    const renderSavingsTrendChart = (transactions, year, month, target) => {
+        if (!cashflowTrendCanvas) return;
+        const ctx = cashflowTrendCanvas.getContext('2d');
+        if (!ctx) return;
+
+        if (cashflowTrendChart) {
+            cashflowTrendChart.destroy();
+            cashflowTrendChart = null;
+        }
+
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const labels = Array.from({ length: daysInMonth }, (_, i) => `${i + 1}`);
+        const dailySavings = Array(daysInMonth).fill(0);
+
+        transactions.forEach(t => {
+            const day = new Date(t.date).getDate();
+            const index = day - 1;
+            if (index < 0 || index >= daysInMonth) return;
+            dailySavings[index] += t.type === 'income' ? t.amount : -t.amount;
+        });
+
+        let runningTotal = 0;
+        const savingsSeries = dailySavings.map(value => {
+            runningTotal += value;
+            return runningTotal;
+        });
+
+        const safeTarget = Number.isFinite(target) ? Math.max(0, Number(target)) : 0;
+        const targetSeries = labels.map((_, index) =>
+            safeTarget ? (safeTarget / daysInMonth) * (index + 1) : 0
+        );
+
+        const hasData = savingsSeries.some(v => v !== 0) || safeTarget > 0;
+        if (!hasData) {
+            if (cashflowTrendEmptyEl) cashflowTrendEmptyEl.classList.remove('hidden');
+            return;
+        }
+        if (cashflowTrendEmptyEl) cashflowTrendEmptyEl.classList.add('hidden');
+
+        cashflowTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Savings',
+                        data: savingsSeries,
+                        borderColor: '#38bdf8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Target',
+                        data: targetSeries,
+                        borderColor: '#94a3b8',
+                        backgroundColor: 'rgba(148, 163, 184, 0.08)',
+                        borderDash: [6, 6],
+                        fill: false,
+                        tension: 0.35,
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'end',
+                        labels: {
+                            color: '#94a3b8',
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: context => `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8', maxTicksLimit: 8 }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#94a3b8',
+                            callback: value => formatCurrency(value)
+                        },
+                        grid: {
+                            color: 'rgba(148,163,184,0.15)'
+                        }
+                    }
+                }
+            }
+        });
     };
 
     const renderTransactionList = (transactions, container, emptyMsgEl) => {
@@ -306,15 +559,15 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             emptyMsgEl.style.display = 'block';
              if (container.id === 'full-transaction-list-container') {
                 emptyMsgEl.innerHTML = `<div class="text-center py-16">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                                        <h3 class="mt-2 text-sm font-medium text-slate-900">No transactions found</h3>
-                                        <p class="mt-1 text-sm text-slate-500">Try adjusting your filters or adding a new transaction.</p>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                        <h3 class="mt-2 text-sm font-medium text-foreground">No transactions found</h3>
+                                        <p class="mt-1 text-sm text-muted-foreground">Try adjusting your filters or adding a new transaction.</p>
                                     </div>`;
             } else {
                  emptyMsgEl.innerHTML = `<div class="text-center py-16">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                        <h3 class="mt-2 text-sm font-medium text-slate-900">No recent transactions</h3>
-                                        <p class="mt-1 text-sm text-slate-500">Get started by adding a new transaction.</p>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                        <h3 class="mt-2 text-sm font-medium text-foreground">No recent transactions</h3>
+                                        <p class="mt-1 text-sm text-muted-foreground">Get started by adding a new transaction.</p>
                                     </div>`;
             }
             return;
@@ -340,45 +593,48 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         transactionsToDisplay.forEach(t => {
             const isIncome = t.type === 'income';
             const sign = isIncome ? '+' : '-';
-            const amountClass = isIncome ? 'text-green-600' : 'text-red-600';
+            const amountClass = isIncome ? 'text-sky-400' : 'text-rose-400';
             const assetName = state.assets.find(a => a.id === t.assetId)?.name || 'Unknown';
 
-            const li = document.createElement('div');
-            li.className = 'transaction-item p-4 border-b border-slate-200 transition-all duration-200';
+                                    const li = document.createElement('div');
+            const typeLabel = isIncome ? 'Income' : 'Expense';
+            const badgeClass = isIncome ? 'bg-sky-500/10 text-sky-400' : 'bg-rose-500/10 text-rose-400';
+            li.className = 'transaction-item group rounded-xl border border-border/60 bg-card/60 p-4 transition-all duration-200 hover:border-accent/40 hover:bg-card/80';
             li.innerHTML = `
-                <div class="flex items-start justify-between w-full flex-wrap">
-                    <!-- Main content row -->
-                    <div class="flex items-center space-x-4">
-                        <div class="p-3 rounded-full ${isIncome ? 'bg-green-100' : 'bg-red-100'}">
-                            ${isIncome ? 
-                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01" /></svg>` :
-                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>`
-                            }
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-start justify-between gap-4 flex-wrap">
+                        <div class="flex items-center gap-4 min-w-[220px]">
+                            <div class="h-11 w-11 rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
+                                ${isIncome ? 
+                                    `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
+                                    `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
+                                }
+                            </div>
+                            <div>
+                                <p class="text-sm text-muted-foreground">${t.category} &bull; ${assetName} &bull; ${formatDateForDisplay(t.date)}</p>
+                                <p class="text-base font-semibold text-foreground">${t.description}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p class="font-semibold text-slate-800">${t.description}</p>
-                            <p class="text-sm text-slate-500">${t.category} on ${assetName} &bull; ${formatDateForDisplay(t.date)}</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <p class="font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
-                        ${t.note ? `
-                            <button class="note-toggle-btn p-1 text-slate-400 hover:text-indigo-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        <div class="flex items-center gap-2 flex-wrap justify-end">
+                            <span class="text-[11px] font-semibold uppercase tracking-[0.2em] px-2 py-1 rounded-full border border-border/60 ${badgeClass}">${typeLabel}</span>
+                            <p class="font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
+                            ${t.note ? `
+                                <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                                </button>
+                            ` : '<div class="w-7"></div>'}
+                            <button data-id="${t.id}" class="edit-btn p-1 text-muted-foreground hover:text-accent">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
                             </button>
-                        ` : '<div class="w-7"></div>' /* Placeholder for alignment */}
-                        <button data-id="${t.id}" class="edit-btn p-1 text-slate-500 hover:text-indigo-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-                        </button>
-                        <button data-id="${t.id}" class="delete-btn p-1 text-slate-500 hover:text-red-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                        </button>
+                            <button data-id="${t.id}" class="delete-btn p-1 text-muted-foreground hover:text-rose-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Note content row -->
                     ${t.note ? `
-                        <div class="note-content w-full border-t border-slate-100">
-                            <p class="text-sm text-slate-600 whitespace-pre-wrap font-mono pl-16">${t.note}</p>
+                        <div class="note-content w-full rounded-lg border border-border/60 bg-muted/40 px-4 py-3">
+                            <p class="text-xs text-muted-foreground whitespace-pre-wrap font-mono">${t.note}</p>
                         </div>
                     ` : ''}
                 </div>
@@ -388,8 +644,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     };
 
     const renderForm = (preserveCategory = true) => {
-        const activeStyles = ['bg-indigo-600', 'text-white', 'border-indigo-600', 'z-10'];
-        const inactiveStyles = ['border-gray-300', 'bg-white', 'text-gray-700', 'hover:bg-gray-50'];
+        const activeStyles = ['bg-accent', 'text-accent-foreground', 'border-accent', 'z-10'];
+        const inactiveStyles = ['border-border', 'bg-card', 'text-foreground', 'hover:bg-muted/50'];
 
         [typeBtnIncome, typeBtnExpense].forEach(btn => btn.classList.remove(...activeStyles, ...inactiveStyles));
 
@@ -442,16 +698,26 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         }
     };
 
+    const animatePage = (pageEl) => {
+        if (!pageEl) return;
+        pageEl.classList.remove('page-enter');
+        void pageEl.offsetWidth;
+        pageEl.classList.add('page-enter');
+    };
+
     const renderPage = () => {
         pageTracker.classList.add('hidden');
         pageAssets.classList.add('hidden');
         pageAllTransactions.classList.add('hidden');
         pageAnalytics.classList.add('hidden');
+        pageSettings.classList.add('hidden');
 
         if (state.ui.currentPage === 'tracker') {
             pageTracker.classList.remove('hidden');
+            animatePage(pageTracker);
         } else if (state.ui.currentPage === 'assets') {
             pageAssets.classList.remove('hidden');
+            animatePage(pageAssets);
              setTimeout(() => {
                 const assetChartCanvas = document.getElementById('asset-chart');
                 if (assetChartCanvas) {
@@ -465,13 +731,19 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }, 0);
         } else if (state.ui.currentPage === 'all-transactions') {
             pageAllTransactions.classList.remove('hidden');
+            animatePage(pageAllTransactions);
             renderAllTransactionsPage();
         } else if (state.ui.currentPage === 'analytics') {
             pageAnalytics.classList.remove('hidden');
+            animatePage(pageAnalytics);
             
             setTimeout(() => {
                 renderAnalytics(); 
             }, 0);
+        } else if (state.ui.currentPage === 'settings') {
+            pageSettings.classList.remove('hidden');
+            animatePage(pageSettings);
+            renderSettings();
         }
 
         if (lastRenderedPage !== state.ui.currentPage) {
@@ -562,11 +834,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         // Use a custom modal instead of confirm()
         const modalHTML = `
             <div class="text-center">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-rose-500/10">
                     <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path></svg>
                 </div>
-                <h3 class="mt-2 text-lg font-semibold text-gray-900">Erase All Data?</h3>
-                <p class="mt-2 text-sm text-gray-500">Are you sure you want to erase ALL data, including transactions and categories? This action is permanent and cannot be undone.</p>
+                <h3 class="mt-2 text-lg font-semibold text-foreground">Erase All Data?</h3>
+                <p class="mt-2 text-sm text-muted-foreground">Are you sure you want to erase ALL data, including transactions and categories? This action is permanent and cannot be undone.</p>
                 <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
                     <button id="confirm-erase" class="btn-danger w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Erase Everything</button>
                     <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
@@ -591,8 +863,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 { user_id: currentUserId, type: 'expense', name: 'Food', color: '#ef4444', is_system: false },
                 { user_id: currentUserId, type: 'expense', name: 'Transport', color: '#f97316', is_system: false },
                 { user_id: currentUserId, type: 'expense', name: 'Utilities', color: '#f59e0b', is_system: false },
-                { user_id: currentUserId, type: 'expense', name: 'Entertainment', color: '#10b981', is_system: false },
-                { user_id: currentUserId, type: 'expense', name: 'Health', color: '#14b8a6', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Entertainment', color: '#38bdf8', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Health', color: '#0ea5e9', is_system: false },
                 { user_id: currentUserId, type: 'expense', name: 'Internal Transfer', color: '#94a3b8', is_system: true }
             ], { onConflict: 'user_id,type,name_normalized' });
 
@@ -768,8 +1040,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                  const transaction = state.transactions.find(t => t.id === idToDelete);
                  const modalHTML = `
                     <div class="text-center">
-                        <h3 class="mt-2 text-lg font-semibold text-gray-900">Delete Transaction?</h3>
-                        <p class="mt-2 text-sm text-gray-500">Are you sure you want to delete this transaction: <br><strong>${transaction.description} (${formatCurrency(transaction.amount)})</strong>?</p>
+                        <h3 class="mt-2 text-lg font-semibold text-foreground">Delete Transaction?</h3>
+                        <p class="mt-2 text-sm text-muted-foreground">Are you sure you want to delete this transaction: <br><strong>${transaction.description} (${formatCurrency(transaction.amount)})</strong>?</p>
                         <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
                             <button id="confirm-delete" class="btn-danger w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Delete</button>
                             <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
@@ -816,6 +1088,10 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         }
     });
 
+    if (viewAllTransactionsBtn) {
+        viewAllTransactionsBtn.addEventListener('click', () => setPage('all-transactions'));
+    }
+
     // -------------------------------------------------------------------------
     // MODALS (Categories & Data Options)
     // -------------------------------------------------------------------------
@@ -846,16 +1122,16 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const renderCategoryList = (type) => {
             const categories = type === 'income' ? state.incomeCategories.map(name => ({name})) : state.expenseCategories;
             return categories.map(cat => `
-                <li class="category-item flex justify-between items-center p-2 bg-slate-100 rounded hover:bg-slate-200" data-name="${cat.name}" data-type="${type}">
+                <li class="category-item flex justify-between items-center p-2 bg-muted/60 rounded hover:bg-muted/70" data-name="${cat.name}" data-type="${type}">
                     <span class="category-name flex items-center">
                         ${cat.color ? `<span class="inline-block w-4 h-4 rounded-full mr-2" style="background-color: ${cat.color};"></span>` : ''}
                         ${cat.name}
                     </span>
                     <div class="category-actions flex items-center space-x-2">
-                        <button class="rename-category-btn text-slate-400 hover:text-indigo-600 p-1 rounded-full">
+                        <button class="rename-category-btn text-muted-foreground hover:text-accent p-1 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                         </button>
-                        <button class="delete-category-btn text-slate-400 hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none">&times;</button>
+                        <button class="delete-category-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none">&times;</button>
                     </div>
                 </li>
             `).join('');
@@ -871,7 +1147,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                     <h3 class="font-semibold mb-2">Income Categories</h3>
                     <ul id="income-cat-list" class="space-y-2 mb-2">${renderCategoryList('income')}</ul>
                     <form id="add-income-cat-form" class="flex gap-2">
-                        <input type="text" placeholder="New income category" class="flex-grow block w-full rounded-md border-gray-300 shadow-sm sm:text-sm">
+                        <input type="text" placeholder="New income category" class="flex-grow block w-full rounded-md border-border shadow-sm sm:text-sm">
                         <button type="submit" class="btn-primary px-3 py-1 rounded-md text-sm font-bold">+</button>
                     </form>
                 </div>
@@ -880,7 +1156,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                     <ul id="expense-cat-list" class="space-y-2 mb-2">${renderCategoryList('expense')}</ul>
                     <form id="add-expense-cat-form" class="space-y-2">
                          <div class="flex gap-2">
-                             <input type="text" name="name" placeholder="New expense category" class="flex-grow block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" required>
+                             <input type="text" name="name" placeholder="New expense category" class="flex-grow block w-full rounded-md border-border shadow-sm sm:text-sm" required>
                              <button type="submit" class="btn-primary px-3 py-1 rounded-md text-sm font-bold">+</button>
                         </div>
                         <div class="flex flex-wrap gap-2 color-palette">
@@ -910,16 +1186,16 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                  </div>
                   <div>
                      <h3 class="font-semibold mb-2">Import Data</h3>
-                     <p class="text-sm text-slate-500 mb-1">Import a JSON file. This will overwrite current data.</p>
+                     <p class="text-sm text-muted-foreground mb-1">Import a JSON file. This will overwrite current data.</p>
                      <div class="flex gap-2">
-                         <input type="file" id="import-json-input" accept=".json" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                         <input type="file" id="import-json-input" accept=".json" class="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/10 file:text-accent-foreground hover:file:bg-accent/20"/>
                          <button id="submit-json-import" class="btn-primary px-3 py-1 rounded-md text-sm">Import</button>
                      </div>
                      <p id="json-error" class="text-red-500 text-sm mt-1"></p>
 
-                     <p class="text-sm text-slate-500 mb-1 mt-4">Import a CSV file. This will add to current data.</p>
+                     <p class="text-sm text-muted-foreground mb-1 mt-4">Import a CSV file. This will add to current data.</p>
                      <div class="flex gap-2">
-                         <input type="file" id="import-csv-input" accept=".csv" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                         <input type="file" id="import-csv-input" accept=".csv" class="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/10 file:text-accent-foreground hover:file:bg-accent/20"/>
                          <button id="submit-csv-import" class="btn-primary px-3 py-1 rounded-md text-sm">Import</button>
                      </div>
                      <p id="csv-error" class="text-red-500 text-sm mt-1"></p>
@@ -1010,8 +1286,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             if (transactionCount > 0) {
                 const modalHTML = `
                     <div class="text-center">
-                        <h3 class="mt-2 text-lg font-semibold text-gray-900">Cannot Delete Category</h3>
-                        <p class="mt-2 text-sm text-gray-500">Cannot delete "${name}" because it has ${transactionCount} transactions linked to it.</p>
+                        <h3 class="mt-2 text-lg font-semibold text-foreground">Cannot Delete Category</h3>
+                        <p class="mt-2 text-sm text-muted-foreground">Cannot delete "${name}" because it has ${transactionCount} transactions linked to it.</p>
                         <div class="mt-5 sm:mt-6">
                             <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
                         </div>
@@ -1022,8 +1298,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             
             const modalHTML = `
                 <div class="text-center">
-                    <h3 class="mt-2 text-lg font-semibold text-gray-900">Delete Category?</h3>
-                    <p class="mt-2 text-sm text-gray-500">Are you sure you want to delete the category "${name}"? This cannot be undone.</p>
+                    <h3 class="mt-2 text-lg font-semibold text-foreground">Delete Category?</h3>
+                    <p class="mt-2 text-sm text-muted-foreground">Are you sure you want to delete the category "${name}"? This cannot be undone.</p>
                     <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
                         <button id="confirm-cat-delete" class="btn-danger w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Delete</button>
                         <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
@@ -1067,7 +1343,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }
             editContainer.innerHTML = `
                 <div class="flex items-center gap-2">
-                    <input type="text" class="flex-grow block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" value="${oldName}">
+                    <input type="text" class="flex-grow block w-full rounded-md border-border shadow-sm sm:text-sm" value="${oldName}">
                     <button class="save-rename-btn btn-primary px-3 py-1 rounded-md text-sm">Save</button>
                     <button class="cancel-rename-btn btn-secondary px-3 py-1 rounded-md text-sm">X</button>
                 </div>
@@ -1202,15 +1478,17 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // ANALYTICS & CHARTING (using Chart.js)
     // -------------------------------------------------------------------------
 
-    let expensePieChart, expenseTrendChart, assetPieChart;
+    let expensePieChart, expenseTrendChart, assetPieChart, cashflowTrendChart;
 
     const destroyCharts = () => {
         if (expensePieChart) expensePieChart.destroy();
         if (expenseTrendChart) expenseTrendChart.destroy();
         if (assetPieChart) assetPieChart.destroy();
+        if (cashflowTrendChart) cashflowTrendChart.destroy();
         expensePieChart = null;
         expenseTrendChart = null;
         assetPieChart = null;
+        cashflowTrendChart = null;
     };
 
     const renderAnalytics = () => {
@@ -1222,21 +1500,34 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const isVisible = state.ui.isBalanceVisible;
         const censoredText = '₹ ******';
 
-        const income = filtered.filter(t => t.type === 'income' && t.category !== 'Internal Transfer').reduce((s, t) => s + t.amount, 0);
-        const expense = filtered.filter(t => t.type === 'expense' && t.category !== 'Internal Transfer').reduce((s, t) => s + t.amount, 0);
+        const visibleTransactions = filtered.filter(t => t.category !== 'Internal Transfer');
+        const income = visibleTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expense = visibleTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
         const savings = income - expense;
+        const expenseTransactions = visibleTransactions.filter(t => t.type === 'expense');
+        const averageExpense = expenseTransactions.length ? expense / expenseTransactions.length : 0;
+        const savingsRate = income > 0 ? (savings / income) * 100 : 0;
 
         analyticsSavingsEl.textContent = isVisible ? formatCurrency(savings) : censoredText;
         analyticsIncomeEl.textContent = isVisible ? formatCurrency(income) : censoredText;
         analyticsExpensesEl.textContent = isVisible ? formatCurrency(expense) : censoredText;
 
-        analyticsSavingsEl.className = `text-3xl font-bold ${savings >= 0 ? 'text-purple-600' : 'text-orange-500'}`;
-        analyticsIncomeEl.className = 'text-3xl font-bold text-green-600';
-        analyticsExpensesEl.className = 'text-3xl font-bold text-red-600';
+        if (analyticsTransactionsCountEl) {
+            analyticsTransactionsCountEl.textContent = `${visibleTransactions.length}`;
+        }
+        if (analyticsAverageExpenseEl) {
+            analyticsAverageExpenseEl.textContent = isVisible ? formatCurrency(averageExpense) : censoredText;
+        }
+        if (analyticsSavingsRateEl) {
+            analyticsSavingsRateEl.textContent = isVisible ? `${savingsRate.toFixed(1)}%` : '--';
+        }
+
+        analyticsSavingsEl.className = `text-3xl font-bold ${savings >= 0 ? 'text-sky-400' : 'text-amber-400'}`;
+        analyticsIncomeEl.className = 'text-3xl font-bold text-sky-400';
+        analyticsExpensesEl.className = 'text-3xl font-bold text-rose-400';
         
-        const chartTransactions = filtered.filter(t => t.category !== 'Internal Transfer');
-        renderExpensePieChart(chartTransactions);
-        renderExpenseTrendChart(chartTransactions);
+        renderExpensePieChart(visibleTransactions);
+        renderExpenseTrendChart(visibleTransactions);
     };
     
     const populateAnalyticsFilters = () => {
@@ -1444,14 +1735,14 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const totalAssets = state.assets.reduce((sum, asset) => sum + asset.balance, 0);
         if (totalAssetsAmountEl) { // Check if element exists
              totalAssetsAmountEl.textContent = isVisible ? formatCurrency(totalAssets) : censoredText;
-             totalAssetsAmountEl.className = `text-3xl font-bold ${totalAssets >= 0 ? 'text-blue-600' : 'text-orange-500'}`;
+             totalAssetsAmountEl.className = `text-2xl lg:text-3xl font-semibold ${totalAssets >= 0 ? 'text-sky-400' : 'text-amber-400'}`;
         }
 
         // Render list of assets
         assetListEl.innerHTML = state.assets.map(asset => `
             <li class="flex justify-between items-center">
                 <span class="font-medium">${asset.name}</span>
-                <span class="text-slate-600">${state.ui.isBalanceVisible ? formatCurrency(asset.balance) : '******'}</span>
+                <span class="text-muted-foreground">${state.ui.isBalanceVisible ? formatCurrency(asset.balance) : '******'}</span>
             </li>
         `).join('');
 
@@ -1476,8 +1767,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         if(!amount || amount <= 0 || fromId === toId) {
              const modalHTML = `
                 <div class="text-center">
-                    <h3 class="mt-2 text-lg font-semibold text-gray-900">Invalid Transfer</h3>
-                    <p class="mt-2 text-sm text-gray-500">Please check the amount and ensure the 'From' and 'To' accounts are different.</p>
+                    <h3 class="mt-2 text-lg font-semibold text-foreground">Invalid Transfer</h3>
+                    <p class="mt-2 text-sm text-muted-foreground">Please check the amount and ensure the 'From' and 'To' accounts are different.</p>
                     <div class="mt-5 sm:mt-6">
                         <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
                     </div>
@@ -1495,8 +1786,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             // Handle case where asset is not found, although it shouldn't happen with the dropdowns.
              const modalHTML = `
                 <div class="text-center">
-                    <h3 class="mt-2 text-lg font-semibold text-gray-900">Error</h3>
-                    <p class="mt-2 text-sm text-gray-500">Could not find the selected accounts.</p>
+                    <h3 class="mt-2 text-lg font-semibold text-foreground">Error</h3>
+                    <p class="mt-2 text-sm text-muted-foreground">Could not find the selected accounts.</p>
                     <div class="mt-5 sm:mt-6">
                         <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
                     </div>
@@ -1511,8 +1802,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         if (!expenseCategory || !incomeCategory) {
             const modalHTML = `
                 <div class="text-center">
-                    <h3 class="mt-2 text-lg font-semibold text-gray-900">Missing Category</h3>
-                    <p class="mt-2 text-sm text-gray-500">Internal Transfer categories are missing. Please refresh and try again.</p>
+                    <h3 class="mt-2 text-lg font-semibold text-foreground">Missing Category</h3>
+                    <p class="mt-2 text-sm text-muted-foreground">Internal Transfer categories are missing. Please refresh and try again.</p>
                     <div class="mt-5 sm:mt-6">
                         <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
                     </div>
@@ -1554,6 +1845,54 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         renderAssetsPage();
         transferForm.reset();
     });
+
+    if (settingsForm && monthlySavingsTargetInput) {
+        settingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = await requireUser();
+            if (!user) return;
+
+            const nextTarget = Number(monthlySavingsTargetInput.value);
+            if (!Number.isFinite(nextTarget) || nextTarget < 0) {
+                if (settingsStatus) {
+                    settingsStatus.textContent = 'Enter a valid monthly target.';
+                    settingsStatus.className = 'text-xs text-rose-400';
+                }
+                return;
+            }
+
+            if (settingsStatus) {
+                settingsStatus.textContent = 'Saving...';
+                settingsStatus.className = 'text-xs text-muted-foreground';
+            }
+
+            const { error } = await supabase
+                .from('user_settings')
+                .upsert(
+                    {
+                        user_id: currentUserId,
+                        monthly_savings_target: nextTarget
+                    },
+                    { onConflict: 'user_id' }
+                );
+
+            if (error) {
+                console.error('Failed to save settings', error);
+                if (settingsStatus) {
+                    settingsStatus.textContent = 'Could not save settings. Please try again.';
+                    settingsStatus.className = 'text-xs text-rose-400';
+                }
+                return;
+            }
+
+            state.settings.monthlySavingsTarget = nextTarget;
+            if (settingsStatus) {
+                settingsStatus.textContent = 'Settings saved.';
+                settingsStatus.className = 'text-xs text-emerald-400';
+            }
+            renderSummary();
+        });
+    }
 
     const renderAssetPieChart = () => {
         if(assetPieChart) assetPieChart.destroy();
@@ -1606,21 +1945,21 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 <h3 class="font-semibold mb-2">Your Accounts</h3>
                 <ul id="manage-asset-list" class="space-y-2 mb-4">
                     ${state.assets.map(asset => `
-                        <li class="asset-item flex justify-between items-center p-2 bg-slate-100 rounded" data-id="${asset.id}" data-name="${asset.name}">
+                        <li class="asset-item flex justify-between items-center p-2 bg-muted/60 rounded" data-id="${asset.id}" data-name="${asset.name}">
                              <span class="asset-name">${asset.name}</span>
                              <div class="asset-actions flex items-center space-x-2">
-                                 <button class="rename-asset-btn text-slate-400 hover:text-indigo-600 p-1 rounded-full">
+                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full">
                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                                  </button>
-                                 <button class="delete-asset-btn text-slate-400 hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none">&times;</button>
+                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none">&times;</button>
                              </div>
                         </li>
                     `).join('')}
                 </ul>
                 <h3 class="font-semibold mb-2 mt-6">Add New Asset</h3>
                 <form id="add-asset-form" class="flex gap-2">
-                    <input type="text" name="name" placeholder="Asset Name" class="flex-grow block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" required>
-                    <input type="number" name="balance" placeholder="Initial Balance" class="block w-32 rounded-md border-gray-300 shadow-sm sm:text-sm" step="0.01">
+                    <input type="text" name="name" placeholder="Asset Name" class="flex-grow block w-full rounded-md border-border shadow-sm sm:text-sm" required>
+                    <input type="number" name="balance" placeholder="Initial Balance" class="block w-32 rounded-md border-border shadow-sm sm:text-sm" step="0.01">
                     <button type="submit" class="btn-primary px-3 py-1 rounded-md text-sm font-bold">+</button>
                 </form>
             </div>`;
@@ -1638,8 +1977,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             if (transactionCount > 0) {
                  const modalHTML = `
                     <div class="text-center">
-                        <h3 class="mt-2 text-lg font-semibold text-gray-900">Cannot Delete Asset</h3>
-                        <p class="mt-2 text-sm text-gray-500">Cannot delete "${assetName}" because it has ${transactionCount} transactions linked to it. Please reassign or delete them first.</p>
+                        <h3 class="mt-2 text-lg font-semibold text-foreground">Cannot Delete Asset</h3>
+                        <p class="mt-2 text-sm text-muted-foreground">Cannot delete "${assetName}" because it has ${transactionCount} transactions linked to it. Please reassign or delete them first.</p>
                         <div class="mt-5 sm:mt-6">
                             <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
                         </div>
@@ -1649,8 +1988,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }
              const modalHTML = `
                 <div class="text-center">
-                    <h3 class="mt-2 text-lg font-semibold text-gray-900">Delete Asset?</h3>
-                    <p class="mt-2 text-sm text-gray-500">Are you sure you want to delete the asset "${assetName}"?</p>
+                    <h3 class="mt-2 text-lg font-semibold text-foreground">Delete Asset?</h3>
+                    <p class="mt-2 text-sm text-muted-foreground">Are you sure you want to delete the asset "${assetName}"?</p>
                     <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
                         <button id="confirm-asset-delete" class="btn-danger w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Delete</button>
                         <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
@@ -1684,10 +2023,10 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
              const editContainer = document.createElement('div');
              editContainer.className = 'flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 items-center';
              editContainer.innerHTML = `
-                <input type="text" class="asset-name-input block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" value="${oldName}">
+                <input type="text" class="asset-name-input block w-full rounded-md border-border shadow-sm sm:text-sm" value="${oldName}">
                 <div class="relative">
-                     <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-gray-500 sm:text-sm">₹</span></div>
-                     <input type="number" step="0.01" class="asset-balance-input block w-full rounded-md border-gray-300 shadow-sm sm:text-sm pl-7" value="${asset.balance}">
+                     <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-muted-foreground sm:text-sm">₹</span></div>
+                     <input type="number" step="0.01" class="asset-balance-input block w-full rounded-md border-border shadow-sm sm:text-sm pl-7" value="${asset.balance}">
                 </div>
                  <div class="md:col-span-2 flex gap-2">
                     <button class="save-rename-asset-btn btn-primary px-3 py-1 rounded-md text-sm w-full">Save</button>

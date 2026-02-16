@@ -21,6 +21,126 @@ type DashboardClientProps = {
   initialPage?: DashboardPage;
 };
 
+const navItems: { id: DashboardPage; label: string; icon: JSX.Element }[] = [
+  {
+    id: "tracker",
+    label: "Overview",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="3" y="3" width="7" height="9" rx="2" />
+        <rect x="14" y="3" width="7" height="5" rx="2" />
+        <rect x="14" y="12" width="7" height="9" rx="2" />
+        <rect x="3" y="16" width="7" height="5" rx="2" />
+      </svg>
+    ),
+  },
+  {
+    id: "assets",
+    label: "Assets",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1" />
+        <path d="M3 7h18" />
+        <path d="M16 10h2" />
+      </svg>
+    ),
+  },
+  {
+    id: "all-transactions",
+    label: "Transactions",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 3 4 7l4 4" />
+        <path d="M4 7h16" />
+        <path d="m16 21 4-4-4-4" />
+        <path d="M20 17H4" />
+      </svg>
+    ),
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M3 3v18h18" />
+        <path d="M8 17v-3" />
+        <path d="M13 17V5" />
+        <path d="M18 17V9" />
+      </svg>
+    ),
+  },
+  {
+    id: "settings",
+    label: "Settings",
+    icon: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 2v2" />
+        <path d="M12 20v2" />
+        <path d="m4.93 4.93 1.41 1.41" />
+        <path d="m17.66 17.66 1.41 1.41" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
+        <path d="m4.93 19.07 1.41-1.41" />
+        <path d="m17.66 6.34 1.41-1.41" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+];
+
+const pageTitles: Record<DashboardPage, string> = {
+  tracker: "Overview",
+  assets: "Assets",
+  "all-transactions": "Transactions",
+  analytics: "Analytics",
+  settings: "Settings",
+};
+
 export default function DashboardClient({
   fontClassName = "",
   initialPage,
@@ -29,7 +149,10 @@ export default function DashboardClient({
   const [activePage, setActivePage] = useState<DashboardPage>(
     initialPage ?? "tracker"
   );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [searchFocused, setSearchFocused] = useState(false);
   const initializedRef = useRef(false);
   const activePageRef = useRef(activePage);
 
@@ -39,6 +162,7 @@ export default function DashboardClient({
       assets: "/dashboard/assets",
       "all-transactions": "/dashboard/transactions",
       analytics: "/dashboard/analytics",
+      settings: "/dashboard/settings",
     }),
     []
   );
@@ -52,7 +176,7 @@ export default function DashboardClient({
     if (!chartsReady || initializedRef.current) return;
     initializedRef.current = true;
     initBudgetDashboard({ initialPage });
-  }, [chartsReady]);
+  }, [chartsReady, initialPage]);
 
   useEffect(() => {
     activePageRef.current = activePage;
@@ -90,6 +214,15 @@ export default function DashboardClient({
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const initial = stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+  }, []);
+
   const handleNavigate = (page: DashboardPage) => {
     if (typeof window === "undefined") return;
     const setPage = (window as Window & { __budgetDashboardSetPage?: Function })
@@ -107,140 +240,327 @@ export default function DashboardClient({
     window.location.href = "/login";
   };
 
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("theme", nextTheme);
+      document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    }
+  };
+
   return (
-    <div className={`budget-dashboard min-h-screen antialiased ${fontClassName}`.trim()}>
+    <div className={cn("budget-dashboard min-h-screen", fontClassName)}>
       <Script
         src="https://cdn.jsdelivr.net/npm/chart.js"
         strategy="afterInteractive"
         onLoad={() => setChartsReady(true)}
       />
-      <div id="app" className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        <header className="mb-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-h-screen text-foreground">
+        <aside
+          className={cn(
+            "fixed left-0 top-0 z-40 h-screen border-r border-sidebar-border bg-sidebar/90 backdrop-blur flex flex-col transition-all duration-300 ease-out",
+            sidebarCollapsed ? "w-[72px]" : "w-[260px]"
+          )}
+        >
+          <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
             <div className="flex items-center gap-3">
-              <div className="flex items-center">
-                <h1 className="text-3xl font-semibold text-foreground flex items-center gap-3">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-8 w-8 text-primary"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-                    <path
-                      fillRule="evenodd"
-                      d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Budget Tracker
-                </h1>
-                <Button
-                  id="visibility-toggle"
-                  variant="ghost"
-                  size="icon"
-                  className="ml-2 rounded-full text-muted-foreground hover:text-foreground"
-                  aria-label="Toggle balance visibility"
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-white/10 text-sidebar-foreground">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <svg
-                    id="eye-icon-open"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                    />
-                  </svg>
-                  <svg
-                    id="eye-icon-slashed"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 hidden"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243l-4.243-4.243zM11.828 15c-.623.623-1.478 1-2.428 1-1.933 0-3.5-1.567-3.5-3.5 0-.95.377-1.805 1-2.428M14.122 14.122L12 12"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c1.206 0 2.362.248 3.44.686M21 12c-1.274 4.057-5.064 7-9.542 7A9.97 9.97 0 015.025 15.025"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 3l18 18"
-                    />
-                  </svg>
-                </Button>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 6v12" />
+                  <path d="M8 10h8" />
+                </svg>
               </div>
+              <span
+                className={cn(
+                  "font-semibold text-lg text-sidebar-foreground whitespace-nowrap transition-all duration-300",
+                  sidebarCollapsed ? "opacity-0 w-0" : "opacity-100"
+                )}
+              >
+                B-Track7
+              </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <nav className="flex items-center gap-1 rounded-lg border border-border bg-muted/70 p-1 shadow-sm">
-                {([
-                  { id: "nav-tracker", page: "tracker", label: "Tracker" },
-                  { id: "nav-assets", page: "assets", label: "Assets" },
-                  {
-                    id: "nav-all-transactions",
-                    page: "all-transactions",
-                    label: "All Transactions",
-                  },
-                  { id: "nav-analytics", page: "analytics", label: "Analytics" },
-                ] as const).map((item) => (
-                  <Button
-                    key={item.id}
-                    id={item.id}
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleNavigate(item.page)}
+          </div>
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
+            {navItems.map((item) => {
+              const isActive = activePage === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavigate(item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative hover:translate-x-1 active:translate-x-0",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-foreground"
+                      : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                  )}
+                >
+                  <span
                     className={cn(
-                      "h-9 px-4",
-                      activePage === item.page
-                        ? "tab-active"
-                        : "text-muted-foreground hover:text-foreground"
+                      "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-accent transition-all duration-300",
+                      isActive ? "opacity-100" : "opacity-0"
                     )}
-                    aria-current={activePage === item.page ? "page" : undefined}
+                  />
+                  <span
+                    className={cn(
+                      "transition-colors duration-200",
+                      isActive
+                        ? "text-accent"
+                        : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  >
+                    {item.icon}
+                  </span>
+                  <span
+                    className={cn(
+                      "whitespace-nowrap transition-all duration-300",
+                      sidebarCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
+                    )}
                   >
                     {item.label}
-                  </Button>
-                ))}
-              </nav>
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="p-3 border-t border-sidebar-border">
+            <button
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200"
+            >
+              {sidebarCollapsed ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  <span>Collapse</span>
+                </>
+              )}
+            </button>
+          </div>
+        </aside>
+        <div
+          className={cn(
+            "flex min-h-screen flex-1 flex-col transition-all duration-300 ease-out",
+            sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"
+          )}
+        >
+          <header className="h-16 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-30 flex items-center justify-between px-6">
+            <div className="flex items-center gap-6">
+              <h1 className="text-xl font-semibold text-foreground">
+                {pageTitles[activePage]}
+              </h1>
+              <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span>This month</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div
+                className={cn(
+                  "relative flex items-center transition-all duration-300",
+                  searchFocused ? "w-64" : "w-44"
+                )}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="absolute left-3 w-4 h-4 text-muted-foreground"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  className="w-full h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-accent transition-all duration-200"
+                />
+              </div>
+              <Button
+                id="visibility-toggle"
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+                aria-label="Toggle balance visibility"
+              >
+                <svg
+                  id="eye-icon-open"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"
+                  />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <svg
+                  id="eye-icon-slashed"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5 hidden"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2 12s3.5-7 10-7a9.7 9.7 0 0 1 5 1.4"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M22 12s-3.5 7-10 7a9.7 9.7 0 0 1-5-1.4"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14 14a3 3 0 0 1-4-4"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m3 3 18 18"
+                  />
+                </svg>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2" />
+                    <path d="M12 20v2" />
+                    <path d="M4.93 4.93 6.34 6.34" />
+                    <path d="M17.66 17.66 19.07 19.07" />
+                    <path d="M2 12h2" />
+                    <path d="M20 12h2" />
+                    <path d="M4.93 19.07 6.34 17.66" />
+                    <path d="M17.66 6.34 19.07 4.93" />
+                  </svg>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+                aria-label="Notifications"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full animate-pulse" />
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="secondary"
                     size="icon"
-                    className="h-10 w-10 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                    className="h-9 w-9 rounded-lg bg-secondary/80 text-foreground hover:bg-secondary"
                     aria-label="Open user menu"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 2a5 5 0 00-3.535 8.535A7.5 7.5 0 002.5 17.5a.75.75 0 001.5 0A6 6 0 0110 11.5a6 6 0 016 6 .75.75 0 001.5 0 7.5 7.5 0 00-3.965-6.965A5 5 0 0010 2zm0 2.5a3 3 0 100 6 3 3 0 000-6z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <span className="text-xs font-semibold">
+                      {userEmail ? userEmail.slice(0, 2).toUpperCase() : "JD"}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -260,9 +580,13 @@ export default function DashboardClient({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
-        </header>
-        <div dangerouslySetInnerHTML={markup} />
+          </header>
+          <main className="flex-1 p-6 overflow-auto">
+            <div className="content-animate">
+              <div dangerouslySetInnerHTML={markup} />
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
