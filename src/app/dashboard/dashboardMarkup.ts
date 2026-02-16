@@ -1,54 +1,19 @@
-export const dashboardMarkup = `
-<div id="app" class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        
-        <!-- App Header and Navigation -->
-        <header class="mb-8">
-            <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-                <div class="flex items-center">
-                    <h1 class="text-3xl font-bold text-slate-800 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3 text-indigo-600" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd" /></svg>
-                        Budget Tracker
-                    </h1>
-                    <button id="visibility-toggle" class="ml-4 p-2 rounded-full text-slate-500 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        <svg id="eye-icon-open" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        <svg id="eye-icon-slashed" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243l-4.243-4.243zM11.828 15c-.623.623-1.478 1-2.428 1-1.933 0-3.5-1.567-3.5-3.5 0-.95.377-1.805 1-2.428M14.122 14.122L12 12" />
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c1.206 0 2.362.248 3.44.686M21 12c-1.274 4.057-5.064 7-9.542 7A9.97 9.97 0 015.025 15.025" />
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" />
-                        </svg>
-                    </button>
-                </div>
-                <div class="flex items-center gap-3">
-                    <nav class="flex space-x-2 p-1 bg-slate-200 rounded-lg">
-                        <button id="nav-tracker" class="px-4 py-2 text-sm font-medium rounded-md transition-colors tab-active">Tracker</button>
-                        <button id="nav-assets" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">Assets</button>
-                        <button id="nav-all-transactions" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">All Transactions</button>
-                        <button id="nav-analytics" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">Analytics</button>
-                    </nav>
-                    <div class="relative">
-                        <button id="user-menu-btn" class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            <span class="sr-only">Open user menu</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a5 5 0 00-3.535 8.535A7.5 7.5 0 002.5 17.5a.75.75 0 001.5 0A6 6 0 0110 11.5a6 6 0 016 6 .75.75 0 001.5 0 7.5 7.5 0 00-3.965-6.965A5 5 0 0010 2zm0 2.5a3 3 0 100 6 3 3 0 000-6z" clip-rule="evenodd" /></svg>
-                        </button>
-                        <div id="user-menu" class="hidden absolute right-0 mt-3 w-56 rounded-xl bg-slate-900 text-white shadow-xl ring-1 ring-black/10">
-                            <div class="px-4 py-3 border-b border-slate-700">
-                                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Signed in as</p>
-                                <p id="user-email" class="mt-1 text-sm font-semibold truncate">user@example.com</p>
-                            </div>
-                            <button id="signout-btn" class="w-full text-left px-4 py-3 text-sm font-semibold hover:bg-slate-800">Sign out</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </header>
+export type DashboardPage = "tracker" | "assets" | "all-transactions" | "analytics";
 
-        <!-- Main Content Area -->
-        <main>
+const resolvePageClass = (page: DashboardPage, activePage: DashboardPage) =>
+  page === activePage ? "" : "hidden";
+
+export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
+  const activePage = initialPage ?? "tracker";
+  const trackerClass = resolvePageClass("tracker", activePage);
+  const assetsClass = resolvePageClass("assets", activePage);
+  const transactionsClass = resolvePageClass("all-transactions", activePage);
+  const analyticsClass = resolvePageClass("analytics", activePage);
+
+  return `
+<main>
             <!-- Tracker Page -->
-            <div id="page-tracker">
+            <div id="page-tracker" class="${trackerClass}">
                 <!-- Summary Cards -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="card p-6 flex justify-between items-center">
@@ -172,7 +137,7 @@ export const dashboardMarkup = `
             </div>
 
             <!-- Assets Page -->
-            <div id="page-assets" class="hidden">
+            <div id="page-assets" class="${assetsClass}">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div class="lg:col-span-1 space-y-8">
 
@@ -231,7 +196,7 @@ export const dashboardMarkup = `
             </div>
             
             <!-- All Transactions Page -->
-            <div id="page-all-transactions" class="hidden">
+            <div id="page-all-transactions" class="${transactionsClass}">
                 <div class="card p-6">
                     <h2 class="text-2xl font-bold text-slate-800 mb-6">All Transactions</h2>
                     
@@ -279,7 +244,7 @@ export const dashboardMarkup = `
             </div>
 
             <!-- Analytics Page -->
-            <div id="page-analytics" class="hidden">
+            <div id="page-analytics" class="${analyticsClass}">
                 <!-- Filters -->
                 <div class="card p-4 mb-8 flex flex-col sm:flex-row gap-4 items-center">
                     <h3 class="text-lg font-semibold text-slate-700">Analytics Filters</h3>
@@ -344,8 +309,6 @@ export const dashboardMarkup = `
                 </div>
             </div>
         </main>
-    </div>
-
     <!-- Modals -->
     <!-- Generic Modal Shell -->
     <div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden modal-backdrop">
@@ -357,4 +320,4 @@ export const dashboardMarkup = `
     <!-- Chart Tooltip -->
     <div id="chart-tooltip"></div>
 `;
-
+};

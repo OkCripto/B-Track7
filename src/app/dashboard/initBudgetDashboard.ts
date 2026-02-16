@@ -43,13 +43,23 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }
         }
     });
-    const resolveInitialPage = () => {
-        if (options.initialPage) return options.initialPage;
-        const path = window.location.pathname;
+    const pageRoutes = {
+        'tracker': '/dashboard',
+        'assets': '/dashboard/assets',
+        'all-transactions': '/dashboard/transactions',
+        'analytics': '/dashboard/analytics'
+    };
+
+    const pageFromPath = (path) => {
         if (path.startsWith('/dashboard/assets')) return 'assets';
         if (path.startsWith('/dashboard/transactions')) return 'all-transactions';
         if (path.startsWith('/dashboard/analytics')) return 'analytics';
         return 'tracker';
+    };
+
+    const resolveInitialPage = () => {
+        if (options.initialPage) return options.initialPage;
+        return pageFromPath(window.location.pathname);
     };
 
     let state = createDefaultState();
@@ -57,6 +67,9 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     const supabase = createSupabaseBrowserClient();
     let currentUserId = null;
+    let lastEmittedUserId = null;
+    let lastEmittedUserEmail = null;
+    let lastRenderedPage = null;
 
     const requireUser = async () => {
         const { data, error } = await supabase.auth.getUser();
@@ -65,9 +78,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return null;
         }
         currentUserId = data.user.id;
-        const emailEl = document.getElementById('user-email');
-        if (emailEl) {
-            emailEl.textContent = data.user.email || 'Account';
+        if (currentUserId !== lastEmittedUserId || data.user.email !== lastEmittedUserEmail) {
+            lastEmittedUserId = currentUserId;
+            lastEmittedUserEmail = data.user.email || null;
+            window.dispatchEvent(new CustomEvent('budget:user-change', {
+                detail: { id: currentUserId, email: data.user.email || '' }
+            }));
         }
         return data.user;
     };
@@ -146,14 +162,6 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const pageAssets = document.getElementById('page-assets');
     const pageAllTransactions = document.getElementById('page-all-transactions');
     const pageAnalytics = document.getElementById('page-analytics');
-    
-    const navTracker = document.getElementById('nav-tracker');
-    const navAssets = document.getElementById('nav-assets');
-    const navAllTransactions = document.getElementById('nav-all-transactions');
-    const navAnalytics = document.getElementById('nav-analytics');
-    const userMenuBtn = document.getElementById('user-menu-btn');
-    const userMenu = document.getElementById('user-menu');
-    const signoutBtn = document.getElementById('signout-btn');
     
     const incomeAmountEl = document.getElementById('income-amount');
     const expenseAmountEl = document.getElementById('expense-amount');
@@ -440,27 +448,10 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         pageAllTransactions.classList.add('hidden');
         pageAnalytics.classList.add('hidden');
 
-        // --- START MODIFICATION ---
-        const allNavButtons = [navTracker, navAssets, navAllTransactions, navAnalytics];
-
-        // Reset all buttons to inactive state
-        allNavButtons.forEach(btn => {
-            btn.classList.remove('tab-active');
-            btn.classList.add('text-slate-600');
-        });
-
-        const setActiveNav = (navEl) => {
-            navEl.classList.remove('text-slate-600'); // Remove inactive text color
-            navEl.classList.add('tab-active'); // Add active styles
-        };
-        // --- END MODIFICATION ---
-
         if (state.ui.currentPage === 'tracker') {
             pageTracker.classList.remove('hidden');
-            setActiveNav(navTracker);
         } else if (state.ui.currentPage === 'assets') {
             pageAssets.classList.remove('hidden');
-            setActiveNav(navAssets);
              setTimeout(() => {
                 const assetChartCanvas = document.getElementById('asset-chart');
                 if (assetChartCanvas) {
@@ -474,15 +465,20 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }, 0);
         } else if (state.ui.currentPage === 'all-transactions') {
             pageAllTransactions.classList.remove('hidden');
-            setActiveNav(navAllTransactions);
             renderAllTransactionsPage();
         } else if (state.ui.currentPage === 'analytics') {
             pageAnalytics.classList.remove('hidden');
-            setActiveNav(navAnalytics);
             
             setTimeout(() => {
                 renderAnalytics(); 
             }, 0);
+        }
+
+        if (lastRenderedPage !== state.ui.currentPage) {
+            lastRenderedPage = state.ui.currentPage;
+            window.dispatchEvent(new CustomEvent('budget:page-change', {
+                detail: { page: state.ui.currentPage }
+            }));
         }
     };
     
@@ -639,8 +635,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         if (!transaction) return;
         
         if (state.ui.currentPage !== 'tracker') {
-            state.ui.currentPage = 'tracker';
-            renderPage();
+            setPage('tracker');
         }
 
         state.ui.formMode = 'edit';
@@ -800,42 +795,26 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     cancelEditBtn.addEventListener('click', resetForm);
 
-    const navigateTo = (page, route) => {
-        if (route && window.location.pathname !== route) {
-            window.location.href = route;
-            return;
+    const setPage = (page, options = {}) => {
+        if (!pageRoutes[page]) return;
+        const { updateHistory = true } = options;
+
+        if (updateHistory && window.location.pathname !== pageRoutes[page]) {
+            window.history.pushState({ page }, '', pageRoutes[page]);
         }
+
         state.ui.currentPage = page;
         renderPage();
     };
 
-    navTracker.addEventListener('click', () => navigateTo('tracker', '/dashboard'));
-    navAssets.addEventListener('click', () => navigateTo('assets', '/dashboard/assets'));
-    navAllTransactions.addEventListener('click', () => navigateTo('all-transactions', '/dashboard/transactions'));
-    navAnalytics.addEventListener('click', () => navigateTo('analytics', '/dashboard/analytics'));
+    window.__budgetDashboardSetPage = setPage;
 
-    if (userMenuBtn && userMenu) {
-        const closeMenu = () => userMenu.classList.add('hidden');
-        const toggleMenu = () => userMenu.classList.toggle('hidden');
-
-        userMenuBtn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            toggleMenu();
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!userMenu.contains(event.target) && event.target !== userMenuBtn) {
-                closeMenu();
-            }
-        });
-    }
-
-    if (signoutBtn) {
-        signoutBtn.addEventListener('click', async () => {
-            await supabase.auth.signOut();
-            window.location.href = '/login';
-        });
-    }
+    window.addEventListener('popstate', () => {
+        const page = pageFromPath(window.location.pathname);
+        if (page !== state.ui.currentPage) {
+            setPage(page, { updateHistory: false });
+        }
+    });
 
     // -------------------------------------------------------------------------
     // MODALS (Categories & Data Options)
