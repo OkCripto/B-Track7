@@ -21,12 +21,27 @@ export const dashboardMarkup = `
                         </svg>
                     </button>
                 </div>
-                <nav class="flex space-x-2 p-1 bg-slate-200 rounded-lg">
-                    <button id="nav-tracker" class="px-4 py-2 text-sm font-medium rounded-md transition-colors tab-active">Tracker</button>
-                    <button id="nav-assets" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">Assets</button>
-                    <button id="nav-all-transactions" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">All Transactions</button>
-                    <button id="nav-analytics" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">Analytics</button>
-                </nav>
+                <div class="flex items-center gap-3">
+                    <nav class="flex space-x-2 p-1 bg-slate-200 rounded-lg">
+                        <button id="nav-tracker" class="px-4 py-2 text-sm font-medium rounded-md transition-colors tab-active">Tracker</button>
+                        <button id="nav-assets" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">Assets</button>
+                        <button id="nav-all-transactions" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">All Transactions</button>
+                        <button id="nav-analytics" class="px-4 py-2 text-sm font-medium rounded-md text-slate-600 transition-colors">Analytics</button>
+                    </nav>
+                    <div class="relative">
+                        <button id="user-menu-btn" class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <span class="sr-only">Open user menu</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a5 5 0 00-3.535 8.535A7.5 7.5 0 002.5 17.5a.75.75 0 001.5 0A6 6 0 0110 11.5a6 6 0 016 6 .75.75 0 001.5 0 7.5 7.5 0 00-3.965-6.965A5 5 0 0010 2zm0 2.5a3 3 0 100 6 3 3 0 000-6z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <div id="user-menu" class="hidden absolute right-0 mt-3 w-56 rounded-xl bg-slate-900 text-white shadow-xl ring-1 ring-black/10">
+                            <div class="px-4 py-3 border-b border-slate-700">
+                                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Signed in as</p>
+                                <p id="user-email" class="mt-1 text-sm font-semibold truncate">user@example.com</p>
+                            </div>
+                            <button id="signout-btn" class="w-full text-left px-4 py-3 text-sm font-semibold hover:bg-slate-800">Sign out</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
