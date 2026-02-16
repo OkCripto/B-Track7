@@ -24,3 +24,203 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.budget-dashboard {
+  font-family: "Inter", sans-serif;
+  background-color: #f0f4f8;
+  transition: background-color 0.3s ease;
+}
+
+.budget-dashboard .card {
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color 0.3s ease;
+}
+
+.budget-dashboard .card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.budget-dashboard .btn-primary {
+  background-color: #4f46e5;
+  color: white;
+  transition: background-color 0.2s;
+}
+
+.budget-dashboard .btn-primary:hover {
+  background-color: #4338ca;
+}
+
+.budget-dashboard .btn-secondary {
+  background-color: #e5e7eb;
+  color: #374151;
+  transition: background-color 0.2s;
+}
+
+.budget-dashboard .btn-secondary:hover {
+  background-color: #d1d5db;
+}
+
+.budget-dashboard .btn-danger {
+  background-color: #ef4444;
+  color: white;
+  transition: background-color 0.2s;
+}
+
+.budget-dashboard .btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.budget-dashboard .tab-active {
+  border-bottom: 3px solid #4f46e5;
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.budget-dashboard .modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.budget-dashboard .modal-content {
+  animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(30px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.budget-dashboard .transaction-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.budget-dashboard .transaction-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.budget-dashboard .transaction-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.budget-dashboard .transaction-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.budget-dashboard input,
+.budget-dashboard select,
+.budget-dashboard textarea,
+.budget-dashboard .type-toggle-btn {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.budget-dashboard select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+.budget-dashboard input:focus,
+.budget-dashboard select:focus,
+.budget-dashboard textarea:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+  outline: none;
+}
+
+.budget-dashboard .type-toggle-btn:hover:not(.bg-indigo-600) {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 2px #c7d2fe;
+}
+
+.budget-dashboard .transaction-item:hover {
+  transform: translateX(4px);
+  background-color: #f8fafc;
+}
+
+.budget-dashboard .category-item,
+.budget-dashboard .asset-item {
+  transition: background-color 0.2s ease-in-out;
+}
+
+.budget-dashboard .note-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out, margin-top 0.3s ease-in-out, padding-top 0.3s ease-in-out;
+}
+
+.budget-dashboard .note-content.visible {
+  max-height: 100px;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.budget-dashboard .note-toggle-btn.rotated svg {
+  transform: rotate(180deg);
+}
+
+.budget-dashboard #expense-chart-container,
+.budget-dashboard #expense-trend-chart-container,
+.budget-dashboard #asset-chart-container {
+  position: relative;
+  width: 100%;
+  height: 20rem;
+}
+
+.budget-dashboard #expense-chart,
+.budget-dashboard #expense-trend-chart,
+.budget-dashboard #asset-chart {
+  cursor: pointer;
+}
+
+.budget-dashboard #chart-tooltip {
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  transform: translate(-50%, calc(-100% - 10px));
+  white-space: nowrap;
+  z-index: 100;
+}
+
+.budget-dashboard .color-swatch {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.budget-dashboard .color-swatch.selected {
+  border-color: #4f46e5;
+  transform: scale(1.2);
+}
