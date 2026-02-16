@@ -7,16 +7,20 @@ import { initBudgetDashboard } from "./initBudgetDashboard";
 
 type DashboardClientProps = {
   fontClassName?: string;
+  initialPage?: "tracker" | "assets" | "all-transactions" | "analytics";
 };
 
-export default function DashboardClient({ fontClassName = "" }: DashboardClientProps) {
+export default function DashboardClient({
+  fontClassName = "",
+  initialPage,
+}: DashboardClientProps) {
   const [chartsReady, setChartsReady] = useState(false);
   const initializedRef = useRef(false);
 
   useEffect(() => {
     if (!chartsReady || initializedRef.current) return;
     initializedRef.current = true;
-    initBudgetDashboard();
+    initBudgetDashboard({ initialPage });
   }, [chartsReady]);
 
   return (

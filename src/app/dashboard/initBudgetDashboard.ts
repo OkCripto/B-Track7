@@ -1,6 +1,11 @@
 // @ts-nocheck
 /* eslint-disable */
-export function initBudgetDashboard() {
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+type BudgetInitOptions = {
+  initialPage?: "tracker" | "assets" | "all-transactions" | "analytics";
+};
+
+export function initBudgetDashboard(options: BudgetInitOptions = {}) {
   if (typeof window === "undefined") return;
   const win = window as Window & { __budgetDashboardInit?: boolean };
   if (win.__budgetDashboardInit) return;
@@ -12,19 +17,11 @@ export function initBudgetDashboard() {
     const PREDEFINED_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#6366f1', '#8b5cf6', '#d946ef'];
     const getRandomColor = () => PREDEFINED_COLORS[Math.floor(Math.random() * PREDEFINED_COLORS.length)];
     const createDefaultState = () => ({
-        assets: [
-            { id: 'cash-default', name: 'Cash', balance: 0 },
-            { id: 'bank-default', name: 'Bank', balance: 0 }
-        ],
+        assets: [],
         transactions: [],
-        incomeCategories: ['Salary', 'Freelance', 'Investment'],
-        expenseCategories: [
-            { name: 'Food', color: PREDEFINED_COLORS[0] },
-            { name: 'Transport', color: PREDEFINED_COLORS[1] },
-            { name: 'Utilities', color: PREDEFINED_COLORS[2] },
-            { name: 'Entertainment', color: PREDEFINED_COLORS[3] },
-            { name: 'Health', color: PREDEFINED_COLORS[4] }
-        ],
+        categories: [],
+        incomeCategories: [],
+        expenseCategories: [],
         ui: {
             currentPage: 'tracker', // 'tracker', 'assets', 'all-transactions', or 'analytics'
             formMode: 'add', // 'add' or 'edit'
@@ -46,11 +43,100 @@ export function initBudgetDashboard() {
             }
         }
     });
+    const resolveInitialPage = () => {
+        if (options.initialPage) return options.initialPage;
+        const path = window.location.pathname;
+        if (path.startsWith('/dashboard/assets')) return 'assets';
+        if (path.startsWith('/dashboard/transactions')) return 'all-transactions';
+        if (path.startsWith('/dashboard/analytics')) return 'analytics';
+        return 'tracker';
+    };
+
     let state = createDefaultState();
-    
-    // No persistence for now (Supabase later).
-    const loadState = () => {};
+    state.ui.currentPage = resolveInitialPage();
+
+    const supabase = createSupabaseBrowserClient();
+    let currentUserId = null;
+
+    const requireUser = async () => {
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data?.user) {
+            window.location.href = '/login';
+            return null;
+        }
+        currentUserId = data.user.id;
+        const emailEl = document.getElementById('user-email');
+        if (emailEl) {
+            emailEl.textContent = data.user.email || 'Account';
+        }
+        return data.user;
+    };
+
+    const rebuildCategoryLists = () => {
+        const income = [];
+        const expense = [];
+        state.categories.forEach(cat => {
+            if (cat.is_system) return;
+            if (cat.type === 'income') {
+                income.push(cat.name);
+            } else {
+                expense.push({ name: cat.name, color: cat.color });
+            }
+        });
+        state.incomeCategories = income;
+        state.expenseCategories = expense;
+    };
+
+    const loadState = async () => {
+        const user = await requireUser();
+        if (!user) return;
+
+        const [assetsRes, categoriesRes, transactionsRes] = await Promise.all([
+            supabase.from('assets').select('*').order('created_at', { ascending: true }),
+            supabase.from('categories').select('*').order('created_at', { ascending: true }),
+            supabase
+                .from('transactions')
+                .select('id, type, amount, description, note, transaction_date, created_at, asset_id, category:categories(name)')
+                .order('transaction_date', { ascending: false })
+        ]);
+
+        if (assetsRes.error || categoriesRes.error || transactionsRes.error) {
+            console.error('Failed to load data', assetsRes.error || categoriesRes.error || transactionsRes.error);
+            return;
+        }
+
+        state.assets = (assetsRes.data || []).map(asset => ({
+            ...asset,
+            balance: Number(asset.balance)
+        }));
+        state.categories = categoriesRes.data || [];
+        rebuildCategoryLists();
+
+        state.transactions = (transactionsRes.data || []).map(row => {
+            const categoryName = Array.isArray(row.category) ? row.category[0]?.name : row.category?.name;
+            return ({
+            id: row.id,
+            type: row.type,
+            amount: Number(row.amount),
+            description: row.description,
+            note: row.note,
+            date: row.transaction_date,
+            createdAt: row.created_at,
+            assetId: row.asset_id,
+            category: categoryName || 'Unknown'
+        });
+        });
+    };
+
     const saveState = () => {};
+
+    const getCategoryRecord = (type, name) => {
+        return state.categories.find(cat => cat.type === type && cat.name === name);
+    };
+
+    const getSystemCategory = (type, name) => {
+        return state.categories.find(cat => cat.type === type && cat.name === name && cat.is_system);
+    };
 
     // -------------------------------------------------------------------------
     // DOM ELEMENTS
@@ -65,6 +151,9 @@ export function initBudgetDashboard() {
     const navAssets = document.getElementById('nav-assets');
     const navAllTransactions = document.getElementById('nav-all-transactions');
     const navAnalytics = document.getElementById('nav-analytics');
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    const userMenu = document.getElementById('user-menu');
+    const signoutBtn = document.getElementById('signout-btn');
     
     const incomeAmountEl = document.getElementById('income-amount');
     const expenseAmountEl = document.getElementById('expense-amount');
@@ -290,7 +379,7 @@ export function initBudgetDashboard() {
         });
     };
 
-    const renderForm = () => {
+    const renderForm = (preserveCategory = true) => {
         const activeStyles = ['bg-indigo-600', 'text-white', 'border-indigo-600', 'z-10'];
         const inactiveStyles = ['border-gray-300', 'bg-white', 'text-gray-700', 'hover:bg-gray-50'];
 
@@ -306,17 +395,30 @@ export function initBudgetDashboard() {
 
         formTypeInput.value = state.ui.activeType;
         
-        const currentCategory = formCategorySelect.value;
+        const currentCategory = preserveCategory ? formCategorySelect.value : '';
         formCategorySelect.innerHTML = '';
-        const categories = state.ui.activeType === 'income' ? state.incomeCategories : state.expenseCategories.map(c => c.name);
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select category';
+        placeholder.disabled = true;
+        formCategorySelect.appendChild(placeholder);
+        const categories = state.ui.activeType === 'income' ? [...state.incomeCategories] : state.expenseCategories.map(c => c.name);
+        if (currentCategory && !categories.includes(currentCategory)) {
+            categories.push(currentCategory);
+        }
         categories.sort().forEach(cat => {
             const option = document.createElement('option');
             option.value = cat;
             option.textContent = cat;
             formCategorySelect.appendChild(option);
         });
-        if(categories.includes(currentCategory)) {
+        if (preserveCategory && currentCategory && categories.includes(currentCategory)) {
             formCategorySelect.value = currentCategory;
+        } else if (preserveCategory && categories.length > 0) {
+            formCategorySelect.value = categories[0];
+        } else {
+            formCategorySelect.value = '';
+            placeholder.selected = true;
         }
 
         const currentAsset = formAssetSelect.value;
@@ -476,8 +578,34 @@ export function initBudgetDashboard() {
             </div>`;
         openModal(modalHTML);
 
-        document.getElementById('confirm-erase').addEventListener('click', () => {
-            state = createDefaultState();
+        document.getElementById('confirm-erase').addEventListener('click', async () => {
+            const user = await requireUser();
+            if (!user) return;
+
+            await supabase.from('transactions').delete().eq('user_id', currentUserId);
+            await supabase.from('categories').delete().eq('user_id', currentUserId).eq('is_system', false);
+            await supabase.from('assets').delete().eq('user_id', currentUserId).eq('is_default', false);
+            await supabase.from('assets').update({ balance: 0 }).eq('user_id', currentUserId).eq('is_default', true);
+
+            await supabase.from('categories').upsert([
+                { user_id: currentUserId, type: 'income', name: 'Salary', color: null, is_system: false },
+                { user_id: currentUserId, type: 'income', name: 'Freelance', color: null, is_system: false },
+                { user_id: currentUserId, type: 'income', name: 'Investment', color: null, is_system: false },
+                { user_id: currentUserId, type: 'income', name: 'Internal Transfer', color: '#94a3b8', is_system: true },
+                { user_id: currentUserId, type: 'expense', name: 'Food', color: '#ef4444', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Transport', color: '#f97316', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Utilities', color: '#f59e0b', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Entertainment', color: '#10b981', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Health', color: '#14b8a6', is_system: false },
+                { user_id: currentUserId, type: 'expense', name: 'Internal Transfer', color: '#94a3b8', is_system: true }
+            ], { onConflict: 'user_id,type,name_normalized' });
+
+            await supabase.from('assets').upsert([
+                { user_id: currentUserId, name: 'Cash', balance: 0, is_default: true },
+                { user_id: currentUserId, name: 'Bank', balance: 0, is_default: true }
+            ], { onConflict: 'user_id,name_normalized' });
+
+            await loadState();
             closeModal();
             render();
         });
@@ -487,19 +615,12 @@ export function initBudgetDashboard() {
     // BUSINESS LOGIC & FORM ACTIONS
     // -------------------------------------------------------------------------
     
-    const updateAssetBalance = (assetId, amount, type, operation = 'add') => {
-        const asset = state.assets.find(a => a.id === assetId);
-        if (!asset) return;
-
-        let value = (type === 'income' ? amount : -amount);
-        if(operation === 'subtract') value = -value;
-
-        asset.balance += value;
-    };
+    const updateAssetBalance = () => {};
     
     const handleTypeChange = (type) => {
+        const typeChanged = state.ui.activeType !== type;
         state.ui.activeType = type;
-        renderForm();
+        renderForm(!typeChanged);
     };
 
     const resetForm = () => {
@@ -539,15 +660,13 @@ export function initBudgetDashboard() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const deleteTransaction = (id) => {
-        const transactionIndex = state.transactions.findIndex(t => t.id === id);
-        if (transactionIndex === -1) return;
-        
-        const transaction = state.transactions[transactionIndex];
-        updateAssetBalance(transaction.assetId, transaction.amount, transaction.type, 'subtract');
-
-        state.transactions.splice(transactionIndex, 1);
-        saveState();
+    const deleteTransaction = async (id) => {
+        const { error } = await supabase.from('transactions').delete().eq('id', id);
+        if (error) {
+            console.error('Failed to delete transaction', error);
+            return;
+        }
+        await loadState();
         render();
         if (state.ui.currentPage === 'all-transactions') renderAllTransactionsPage();
         if (state.ui.currentPage === 'assets') renderAssetsPage();
@@ -558,8 +677,11 @@ export function initBudgetDashboard() {
     // EVENT HANDLERS
     // -------------------------------------------------------------------------
     
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const user = await requireUser();
+        if (!user) return;
+
         const id = formIdInput.value;
         const amount = parseFloat(formAmountInput.value);
         const type = formTypeInput.value;
@@ -574,26 +696,50 @@ export function initBudgetDashboard() {
             type,
             assetId,
         };
-        if (!transactionData.date || !transactionData.amount || !transactionData.description || !assetId) { return; }
+        if (!transactionData.date || !transactionData.amount || !transactionData.description || !assetId || !transactionData.category) { return; }
+
+        const categoryRecord = getCategoryRecord(type, transactionData.category) || getSystemCategory(type, transactionData.category);
+        if (!categoryRecord) {
+            console.error('Category not found', transactionData.category);
+            return;
+        }
         
         if (state.ui.formMode === 'edit') {
-            const index = state.transactions.findIndex(t => t.id === id);
-            if (index !== -1) { 
-                const oldTransaction = state.transactions[index];
-                // Revert old transaction from its asset
-                updateAssetBalance(oldTransaction.assetId, oldTransaction.amount, oldTransaction.type, 'subtract');
-                // Apply new transaction to its asset
-                updateAssetBalance(assetId, amount, type, 'add');
-                state.transactions[index] = { ...oldTransaction, ...transactionData };
+            const { error } = await supabase
+                .from('transactions')
+                .update({
+                    user_id: currentUserId,
+                    asset_id: assetId,
+                    category_id: categoryRecord.id,
+                    type,
+                    amount,
+                    description: transactionData.description,
+                    note: transactionData.note || null,
+                    transaction_date: transactionData.date
+                })
+                .eq('id', id);
+            if (error) {
+                console.error('Failed to update transaction', error);
+                return;
             }
         } else {
-            transactionData.id = crypto.randomUUID();
-            transactionData.createdAt = new Date().toISOString();
-            updateAssetBalance(assetId, amount, type, 'add');
-            state.transactions.push(transactionData);
+            const { error } = await supabase.from('transactions').insert({
+                user_id: currentUserId,
+                asset_id: assetId,
+                category_id: categoryRecord.id,
+                type,
+                amount,
+                description: transactionData.description,
+                note: transactionData.note || null,
+                transaction_date: transactionData.date
+            });
+            if (error) {
+                console.error('Failed to add transaction', error);
+                return;
+            }
         }
         resetForm();
-        saveState();
+        await loadState();
         render();
         if (state.ui.currentPage === 'analytics') renderAnalytics();
     });
@@ -635,8 +781,8 @@ export function initBudgetDashboard() {
                         </div>
                     </div>`;
                 openModal(modalHTML);
-                document.getElementById('confirm-delete').addEventListener('click', () => {
-                    deleteTransaction(idToDelete);
+                document.getElementById('confirm-delete').addEventListener('click', async () => {
+                    await deleteTransaction(idToDelete);
                     closeModal();
                 });
             }
@@ -654,10 +800,42 @@ export function initBudgetDashboard() {
 
     cancelEditBtn.addEventListener('click', resetForm);
 
-    navTracker.addEventListener('click', () => { state.ui.currentPage = 'tracker'; renderPage(); });
-    navAssets.addEventListener('click', () => { state.ui.currentPage = 'assets'; renderPage(); });
-    navAllTransactions.addEventListener('click', () => { state.ui.currentPage = 'all-transactions'; renderPage(); });
-    navAnalytics.addEventListener('click', () => { state.ui.currentPage = 'analytics'; renderPage(); });
+    const navigateTo = (page, route) => {
+        if (route && window.location.pathname !== route) {
+            window.location.href = route;
+            return;
+        }
+        state.ui.currentPage = page;
+        renderPage();
+    };
+
+    navTracker.addEventListener('click', () => navigateTo('tracker', '/dashboard'));
+    navAssets.addEventListener('click', () => navigateTo('assets', '/dashboard/assets'));
+    navAllTransactions.addEventListener('click', () => navigateTo('all-transactions', '/dashboard/transactions'));
+    navAnalytics.addEventListener('click', () => navigateTo('analytics', '/dashboard/analytics'));
+
+    if (userMenuBtn && userMenu) {
+        const closeMenu = () => userMenu.classList.add('hidden');
+        const toggleMenu = () => userMenu.classList.toggle('hidden');
+
+        userMenuBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleMenu();
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!userMenu.contains(event.target) && event.target !== userMenuBtn) {
+                closeMenu();
+            }
+        });
+    }
+
+    if (signoutBtn) {
+        signoutBtn.addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+        });
+    }
 
     // -------------------------------------------------------------------------
     // MODALS (Categories & Data Options)
@@ -771,36 +949,55 @@ export function initBudgetDashboard() {
         openModal(modalHTML);
     });
 
-    modalContent.addEventListener('submit', (e) => {
+    modalContent.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const user = await requireUser();
+        if (!user) return;
+
         if (e.target.id === 'add-income-cat-form') {
             const input = e.target.querySelector('input[type="text"]');
             const newCategory = input.value.trim();
-            if (newCategory) state.incomeCategories.push(newCategory);
+            if (newCategory) {
+                const { error } = await supabase.from('categories').insert({
+                    user_id: currentUserId,
+                    type: 'income',
+                    name: newCategory
+                });
+                if (error) console.error('Failed to add category', error);
+            }
         } else if (e.target.id === 'add-expense-cat-form') {
             const nameInput = e.target.querySelector('input[name="name"]');
             const colorInput = e.target.querySelector('input[name="color"]');
             const newCategory = { name: nameInput.value.trim(), color: colorInput.value };
-            if (newCategory.name) state.expenseCategories.push(newCategory);
+            if (newCategory.name) {
+                const { error } = await supabase.from('categories').insert({
+                    user_id: currentUserId,
+                    type: 'expense',
+                    name: newCategory.name,
+                    color: newCategory.color
+                });
+                if (error) console.error('Failed to add category', error);
+            }
         } else if (e.target.id === 'add-asset-form') {
              const nameInput = e.target.querySelector('input[name="name"]');
              const balanceInput = e.target.querySelector('input[name="balance"]');
-             if(nameInput.value.trim()){
-                 const newAsset = {
-                     id: crypto.randomUUID(),
+             if (nameInput.value.trim()) {
+                 const { error } = await supabase.from('assets').insert({
+                     user_id: currentUserId,
                      name: nameInput.value.trim(),
                      balance: parseFloat(balanceInput.value) || 0
-                 };
-                 state.assets.push(newAsset);
+                 });
+                 if (error) console.error('Failed to add asset', error);
              }
         }
-        saveState();
+
+        await loadState();
         if (state.ui.currentPage === 'assets') manageAssetsBtn.click();
         else manageCategoriesBtn.click();
         render();
     });
 
-    modalContent.addEventListener('click', (e) => {
+    modalContent.addEventListener('click', async (e) => {
         
         // Delegated listener for color swatches
         const swatch = e.target.closest('.color-swatch');
@@ -828,6 +1025,21 @@ export function initBudgetDashboard() {
             const listItem = deleteBtn.closest('.category-item');
             const name = listItem.dataset.name;
             const type = listItem.dataset.type;
+            const categoryRecord = getCategoryRecord(type, name);
+            const transactionCount = state.transactions.filter(t => t.type === type && t.category === name).length;
+
+            if (transactionCount > 0) {
+                const modalHTML = `
+                    <div class="text-center">
+                        <h3 class="mt-2 text-lg font-semibold text-gray-900">Cannot Delete Category</h3>
+                        <p class="mt-2 text-sm text-gray-500">Cannot delete "${name}" because it has ${transactionCount} transactions linked to it.</p>
+                        <div class="mt-5 sm:mt-6">
+                            <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
+                        </div>
+                    </div>`;
+                openModal(modalHTML);
+                return;
+            }
             
             const modalHTML = `
                 <div class="text-center">
@@ -840,13 +1052,16 @@ export function initBudgetDashboard() {
                 </div>`;
             openModal(modalHTML);
             
-            document.getElementById('confirm-cat-delete').addEventListener('click', () => {
-                if (type === 'income') {
-                    state.incomeCategories = state.incomeCategories.filter(c => c !== name);
-                } else {
-                    state.expenseCategories = state.expenseCategories.filter(c => c.name !== name);
+            document.getElementById('confirm-cat-delete').addEventListener('click', async () => {
+                if (!categoryRecord) {
+                    closeModal();
+                    return;
                 }
-                saveState();
+                const { error } = await supabase.from('categories').delete().eq('id', categoryRecord.id);
+                if (error) {
+                    console.error('Failed to delete category', error);
+                }
+                await loadState();
                 manageCategoriesBtn.click(); // Re-opens and re-renders the manage categories modal
                 renderForm();
             });
@@ -891,47 +1106,38 @@ export function initBudgetDashboard() {
             const newName = input.value.trim();
             const oldName = listItem.dataset.name;
             const type = listItem.dataset.type;
+            const categoryRecord = getCategoryRecord(type, oldName);
 
             let hasChanged = false;
             let nameHasChanged = newName && newName !== oldName;
+            let newColor = null;
 
             if (type === 'income') {
                 if (nameHasChanged) {
-                    const index = state.incomeCategories.indexOf(oldName);
-                    if (index > -1) {
-                        state.incomeCategories[index] = newName;
-                        hasChanged = true;
-                    }
+                    hasChanged = true;
                 }
             } else { // type is 'expense'
                 const colorInput = listItem.querySelector('input[name="color"]');
-                const newColor = colorInput ? colorInput.value : null;
+                newColor = colorInput ? colorInput.value : null;
                 const category = state.expenseCategories.find(c => c.name === oldName);
-                
                 if (category) {
                     const colorHasChanged = newColor && newColor !== category.color;
-                    if (nameHasChanged) {
-                        category.name = newName;
-                        hasChanged = true;
-                    }
-                    if (colorHasChanged) {
-                        category.color = newColor;
+                    if (nameHasChanged || colorHasChanged) {
                         hasChanged = true;
                     }
                 }
             }
             
-            if (hasChanged) {
-                // If name changed, update all transactions with that category
-                if (nameHasChanged) {
-                    state.transactions.forEach(t => { 
-                        if (t.category === oldName) {
-                            t.category = newName;
-                        }
-                    });
+            if (hasChanged && categoryRecord) {
+                const updates = {};
+                if (nameHasChanged) updates.name = newName;
+                if (type === 'expense' && newColor) updates.color = newColor;
+                if (Object.keys(updates).length > 0) {
+                    const { error } = await supabase.from('categories').update(updates).eq('id', categoryRecord.id);
+                    if (error) console.error('Failed to rename category', error);
+                    await loadState();
+                    render(); // Full re-render to update UI everywhere
                 }
-                saveState();
-                render(); // Full re-render to update UI everywhere
             }
             manageCategoriesBtn.click(); // Re-render the modal to show the updated list or cancel edit view
         }
@@ -998,113 +1204,18 @@ export function initBudgetDashboard() {
         closeModal();
     };
 
-    const importFromJSON = (file) => {
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const importedState = JSON.parse(e.target.result);
-                if (importedState.transactions && importedState.incomeCategories && importedState.expenseCategories) {
-                     const modalHTML = `
-                        <div class="text-center">
-                            <h3 class="mt-2 text-lg font-semibold text-gray-900">Confirm Import</h3>
-                            <p class="mt-2 text-sm text-gray-500">Importing this file will overwrite all current data. Are you sure?</p>
-                            <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
-                                <button id="confirm-import-json" class="btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Import and Overwrite</button>
-                                <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
-                            </div>
-                        </div>`;
-                    openModal(modalHTML);
-                    document.getElementById('confirm-import-json').addEventListener('click', () => {
-                        state = importedState;
-                        saveState();
-                        render();
-                        closeModal();
-                    });
-                } else { 
-                    modalContent.querySelector('#json-error').textContent = 'Invalid file format.';
-                 }
-            } catch (error) { 
-                modalContent.querySelector('#json-error').textContent = 'Error reading file.';
-            }
-        };
-        reader.readAsText(file);
+    const importFromJSON = () => {
+        const errorEl = modalContent.querySelector('#json-error');
+        if (errorEl) {
+            errorEl.textContent = 'Import is not available yet with cloud sync.';
+        }
     };
     
-    const importFromCSV = (file) => {
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const csv = e.target.result;
-                const lines = csv.split('\n').filter(line => line.trim());
-                if (lines.length <= 1) {
-                    modalContent.querySelector('#csv-error').textContent = 'CSV file is empty or has no data rows.';
-                    return;
-                }
-                const header = lines[0].trim().split(',');
-                const expectedHeader = ['ID','Date','Type','Category','Description','Amount','Note', 'AssetID'];
-
-                if(JSON.stringify(header) !== JSON.stringify(expectedHeader)) {
-                    modalContent.querySelector('#csv-error').textContent = 'Invalid CSV header.';
-                    return;
-                }
-                
-                const newTransactions = lines.slice(1).map(line => {
-                    const columns = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g).map(field => field.replace(/"/g, ''));
-                    const transaction = {
-                        id: columns[0] || crypto.randomUUID(),
-                        date: columns[1],
-                        type: columns[2].toLowerCase(),
-                        category: columns[3],
-                        description: columns[4],
-                        amount: parseFloat(columns[5]),
-                        note: columns[6] || '',
-                        assetId: columns[7]
-                    };
-
-                    // Find or create asset
-                    let asset = state.assets.find(a => a.id === transaction.assetId);
-                    if (!asset) {
-                       transaction.assetId = state.assets[0]?.id || 'cash-default'; // Fallback to first asset
-                    }
-                    
-                    // Update asset balance based on this imported transaction
-                    updateAssetBalance(transaction.assetId, transaction.amount, transaction.type, 'add');
-
-                    return transaction;
-                });
-                
-                const modalHTML = `
-                    <div class="text-center">
-                        <h3 class="mt-2 text-lg font-semibold text-gray-900">Confirm Import</h3>
-                        <p class="mt-2 text-sm text-gray-500">Found ${newTransactions.length} transactions. Add them to your current data?</p>
-                        <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
-                            <button id="confirm-import-csv" class="btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Add Transactions</button>
-                            <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
-                        </div>
-                    </div>`;
-                openModal(modalHTML);
-                document.getElementById('confirm-import-csv').addEventListener('click', () => {
-                    newTransactions.forEach(t => {
-                        if (t.type === 'income' && !state.incomeCategories.includes(t.category)) {
-                            state.incomeCategories.push(t.category);
-                        } else if (t.type === 'expense' && !state.expenseCategories.find(c => c.name === t.category)) {
-                            state.expenseCategories.push({ name: t.category, color: getRandomColor() });
-                        }
-                    });
-
-                    state.transactions.push(...newTransactions);
-                    saveState();
-                    render();
-                    closeModal();
-                });
-            } catch (error) {
-                console.error("Error importing CSV:", error);
-                modalContent.querySelector('#csv-error').textContent = 'Error parsing CSV file.';
-            }
-        };
-        reader.readAsText(file);
+    const importFromCSV = () => {
+        const errorEl = modalContent.querySelector('#csv-error');
+        if (errorEl) {
+            errorEl.textContent = 'Import is not available yet with cloud sync.';
+        }
     };
 
 
@@ -1374,8 +1485,11 @@ export function initBudgetDashboard() {
         renderAssetPieChart();
     };
 
-    transferForm.addEventListener('submit', (e) => {
+    transferForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const user = await requireUser();
+        if (!user) return;
+
         const fromId = document.getElementById('transfer-from').value;
         const toId = document.getElementById('transfer-to').value;
         const amount = parseFloat(document.getElementById('transfer-amount').value);
@@ -1412,35 +1526,51 @@ export function initBudgetDashboard() {
             return;
         }
 
-        // Expense from source asset
-        state.transactions.push({
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-            date: date,
-            type: 'expense',
-            category: 'Internal Transfer',
-            description: `Transfer to ${toAsset.name}`,
-            amount: amount,
-            assetId: fromId,
-            note: ''
-        });
-        updateAssetBalance(fromId, amount, 'expense');
+        const expenseCategory = getSystemCategory('expense', 'Internal Transfer') || getCategoryRecord('expense', 'Internal Transfer');
+        const incomeCategory = getSystemCategory('income', 'Internal Transfer') || getCategoryRecord('income', 'Internal Transfer');
 
-        // Income to destination asset
-        state.transactions.push({
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-            date: date,
-            type: 'income',
-            category: 'Internal Transfer',
-            description: `Transfer from ${fromAsset.name}`,
-            amount: amount,
-            assetId: toId,
-            note: ''
-        });
-        updateAssetBalance(toId, amount, 'income');
+        if (!expenseCategory || !incomeCategory) {
+            const modalHTML = `
+                <div class="text-center">
+                    <h3 class="mt-2 text-lg font-semibold text-gray-900">Missing Category</h3>
+                    <p class="mt-2 text-sm text-gray-500">Internal Transfer categories are missing. Please refresh and try again.</p>
+                    <div class="mt-5 sm:mt-6">
+                        <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
+                    </div>
+                </div>`;
+            openModal(modalHTML);
+            return;
+        }
 
-        saveState();
+        const { error } = await supabase.from('transactions').insert([
+            {
+                user_id: currentUserId,
+                asset_id: fromId,
+                category_id: expenseCategory.id,
+                type: 'expense',
+                amount,
+                description: `Transfer to ${toAsset.name}`,
+                note: '',
+                transaction_date: date
+            },
+            {
+                user_id: currentUserId,
+                asset_id: toId,
+                category_id: incomeCategory.id,
+                type: 'income',
+                amount,
+                description: `Transfer from ${fromAsset.name}`,
+                note: '',
+                transaction_date: date
+            }
+        ]);
+
+        if (error) {
+            console.error('Failed to create transfer', error);
+            return;
+        }
+
+        await loadState();
         render(); // Full re-render
         renderAssetsPage();
         transferForm.reset();
@@ -1518,7 +1648,7 @@ export function initBudgetDashboard() {
         openModal(modalHTML);
     });
 
-     modalContent.addEventListener('click', (e) => {
+     modalContent.addEventListener('click', async (e) => {
         const deleteBtn = e.target.closest('.delete-asset-btn');
         if(deleteBtn) {
             const listItem = deleteBtn.closest('.asset-item');
@@ -1549,9 +1679,12 @@ export function initBudgetDashboard() {
                 </div>`;
             openModal(modalHTML);
 
-            document.getElementById('confirm-asset-delete').addEventListener('click', () => {
-                state.assets = state.assets.filter(a => a.id !== assetId);
-                saveState();
+            document.getElementById('confirm-asset-delete').addEventListener('click', async () => {
+                const { error } = await supabase.from('assets').delete().eq('id', assetId);
+                if (error) {
+                    console.error('Failed to delete asset', error);
+                }
+                await loadState();
                 render();
                 manageAssetsBtn.click();
             });
@@ -1596,12 +1729,14 @@ export function initBudgetDashboard() {
             const assetId = listItem.dataset.id;
 
             if (newName && !isNaN(newBalance)) {
-                const asset = state.assets.find(a => a.id === assetId);
-                if (asset) {
-                    asset.name = newName;
-                    asset.balance = newBalance;
+                const { error } = await supabase
+                    .from('assets')
+                    .update({ name: newName, balance: newBalance })
+                    .eq('id', assetId);
+                if (error) {
+                    console.error('Failed to update asset', error);
                 }
-                saveState();
+                await loadState();
                 render();
                 manageAssetsBtn.click();
             }
@@ -1617,8 +1752,8 @@ export function initBudgetDashboard() {
     // INITIALIZATION
     // -------------------------------------------------------------------------
 
-    const init = () => {
-        loadState();
+    const init = async () => {
+        await loadState();
         formDateInput.value = formatDateForInput(new Date());
         render();
         // Resize charts on window resize
