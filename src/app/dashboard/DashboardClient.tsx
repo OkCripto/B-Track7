@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ type DashboardClientProps = {
   initialPage?: DashboardPage;
 };
 
-const navItems: { id: DashboardPage; label: string; icon: JSX.Element }[] = [
+const navItems: { id: DashboardPage; label: string; icon: ReactNode }[] = [
   {
     id: "tracker",
     label: "Overview",
