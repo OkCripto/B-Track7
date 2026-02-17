@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -98,31 +98,25 @@ export default function LoginForm() {
   const isAnyLoading = isLoading || isGoogleLoading;
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+    <div className="rounded-3xl border border-white/10 bg-black/40 p-8 shadow-2xl backdrop-blur">
       <div className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/60">
           Sign in
         </p>
-        <h2 className="text-3xl font-semibold text-slate-900">
-          Welcome back
-        </h2>
-        <p className="text-sm text-slate-600">
+        <h2 className="text-3xl font-semibold text-white">Welcome back</h2>
+        <p className="text-sm text-white/70">
           Continue tracking your budget in seconds.
         </p>
       </div>
 
       <div className="mt-8 space-y-4">
         <button
-          className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-semibold text-white/80 shadow-sm transition hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-70"
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isAnyLoading || !supabaseReady}
         >
-          <svg
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M23.49 12.27c0-.82-.07-1.6-.2-2.36H12v4.47h6.46a5.53 5.53 0 0 1-2.4 3.63v3.02h3.88c2.27-2.1 3.55-5.2 3.55-8.76Z"
               fill="#4285F4"
@@ -144,20 +138,20 @@ export default function LoginForm() {
             {isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}
           </span>
         </button>
-        <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-          <span className="h-px flex-1 bg-slate-200" />
+        <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+          <span className="h-px flex-1 bg-white/10" />
           <span>or</span>
-          <span className="h-px flex-1 bg-slate-200" />
+          <span className="h-px flex-1 bg-white/10" />
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-700" htmlFor="email">
+          <label className="text-sm font-medium text-white/70" htmlFor="email">
             Email
           </label>
           <input
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white shadow-sm outline-none transition placeholder:text-white/40 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/20"
             id="email"
             name="email"
             type="email"
@@ -167,37 +161,34 @@ export default function LoginForm() {
           />
         </div>
         <div className="space-y-2">
-          <label
-            className="text-sm font-medium text-slate-700"
-            htmlFor="password"
-          >
+          <label className="text-sm font-medium text-white/70" htmlFor="password">
             Password
           </label>
           <input
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white shadow-sm outline-none transition placeholder:text-white/40 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/20"
             id="password"
             name="password"
             type="password"
             autoComplete="current-password"
-            placeholder="••••••••"
+            placeholder="********"
             required
           />
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
         ) : null}
 
         {message ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
             {message}
           </div>
         ) : null}
 
         <button
-          className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+          className="flex w-full items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/60"
           type="submit"
           disabled={isAnyLoading || !supabaseReady}
         >
@@ -205,9 +196,9 @@ export default function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-6 text-sm text-slate-600">
+      <p className="mt-6 text-sm text-white/60">
         Need an account?{" "}
-        <Link className="font-semibold text-indigo-600" href="/signup">
+        <Link className="font-semibold text-white" href="/signup">
           Create one
         </Link>
         .
