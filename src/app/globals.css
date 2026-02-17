@@ -160,10 +160,6 @@
     filter: none;
     transition: none;
   }
-
-  .path-animate {
-    animation: none;
-  }
 }
 
 @keyframes pathTravel {
