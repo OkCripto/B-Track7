@@ -23,7 +23,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         incomeCategories: [],
         expenseCategories: [],
         settings: {
-            monthlySavingsTarget: 500
+            monthlySavingsTarget: 500,
+            useCompactCurrency: true
         },
         ui: {
             currentPage: 'tracker', // 'tracker', 'assets', 'all-transactions', 'analytics', or 'settings'
@@ -121,7 +122,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 .order('transaction_date', { ascending: false }),
             supabase
                 .from('user_settings')
-                .select('monthly_savings_target')
+                .select('monthly_savings_target, use_compact_currency')
                 .eq('user_id', currentUserId)
                 .maybeSingle()
         ]);
@@ -155,22 +156,52 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
         if (settingsRes?.error) {
             console.error('Failed to load settings', settingsRes.error);
-        } else if (settingsRes?.data?.monthly_savings_target != null) {
-            state.settings.monthlySavingsTarget = Number(settingsRes.data.monthly_savings_target);
+            const fallbackSettings = await supabase
+                .from('user_settings')
+                .select('monthly_savings_target')
+                .eq('user_id', currentUserId)
+                .maybeSingle();
+            if (fallbackSettings?.data?.monthly_savings_target != null) {
+                state.settings.monthlySavingsTarget = Number(fallbackSettings.data.monthly_savings_target);
+            }
+        } else if (settingsRes?.data) {
+            if (settingsRes.data.monthly_savings_target != null) {
+                state.settings.monthlySavingsTarget = Number(settingsRes.data.monthly_savings_target);
+            }
+            if (settingsRes.data.use_compact_currency != null) {
+                state.settings.useCompactCurrency = Boolean(settingsRes.data.use_compact_currency);
+            }
         } else {
             const fallbackTarget = Number(state.settings.monthlySavingsTarget || 500);
             const { data: insertedSettings, error: insertError } = await supabase
                 .from('user_settings')
                 .insert({
                     user_id: currentUserId,
-                    monthly_savings_target: fallbackTarget
+                    monthly_savings_target: fallbackTarget,
+                    use_compact_currency: state.settings.useCompactCurrency
                 })
-                .select('monthly_savings_target')
+                .select('monthly_savings_target, use_compact_currency')
                 .single();
             if (insertError) {
                 console.error('Failed to create settings row', insertError);
-            } else if (insertedSettings?.monthly_savings_target != null) {
-                state.settings.monthlySavingsTarget = Number(insertedSettings.monthly_savings_target);
+                const fallbackInsert = await supabase
+                    .from('user_settings')
+                    .insert({
+                        user_id: currentUserId,
+                        monthly_savings_target: fallbackTarget
+                    })
+                    .select('monthly_savings_target')
+                    .single();
+                if (fallbackInsert?.data?.monthly_savings_target != null) {
+                    state.settings.monthlySavingsTarget = Number(fallbackInsert.data.monthly_savings_target);
+                }
+            } else if (insertedSettings) {
+                if (insertedSettings.monthly_savings_target != null) {
+                    state.settings.monthlySavingsTarget = Number(insertedSettings.monthly_savings_target);
+                }
+                if (insertedSettings.use_compact_currency != null) {
+                    state.settings.useCompactCurrency = Boolean(insertedSettings.use_compact_currency);
+                }
             }
         }
     };
@@ -251,6 +282,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const modalContent = document.getElementById('modal-content');
     const settingsForm = document.getElementById('settings-form');
     const monthlySavingsTargetInput = document.getElementById('monthly-savings-target');
+    const compactCurrencyToggle = document.getElementById('compact-currency-toggle');
     const settingsStatus = document.getElementById('settings-status');
 
     // Analytics elements
@@ -306,6 +338,24 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             year: 'numeric'
         });
     };
+
+    const showInsufficientFundsModal = (assetName, balance, attempted) => {
+        const safeName = assetName || 'This account';
+        const modalHTML = `
+            <div class="text-center">
+                <h3 class="mt-2 text-lg font-semibold text-foreground">Insufficient Funds</h3>
+                <p class="mt-2 text-sm text-muted-foreground">
+                    ${safeName} would fall below zero. Balance: ${formatCurrency(balance)}. Attempted: ${formatCurrency(attempted)}.
+                </p>
+                <div class="mt-5 sm:mt-6">
+                    <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
+                </div>
+            </div>`;
+        openModal(modalHTML);
+    };
+
+    const getTransactionEffect = (type, amount) => (type === 'income' ? amount : -amount);
+
 
     const applyDelta = (el, current, previous) => {
         if (!el) return;
@@ -422,10 +472,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const netWorth = state.assets.reduce((sum, asset) => sum + asset.balance, 0);
         const prevNetWorth = netWorth - monthlySavings;
 
-        incomeAmountEl.textContent = isVisible ? formatCompactCurrency(monthlyIncome) : censoredText;
-        expenseAmountEl.textContent = isVisible ? formatCompactCurrency(monthlyExpense) : censoredText;
-        monthlySavingsAmountEl.textContent = isVisible ? formatCompactCurrency(monthlySavings) : censoredText;
-        netWorthAmountEl.textContent = isVisible ? formatCompactCurrency(netWorth) : censoredText;
+        const useCompact = state.settings.useCompactCurrency !== false;
+        const formatSummaryCurrency = useCompact ? formatCompactCurrency : formatCurrency;
+
+        incomeAmountEl.textContent = isVisible ? formatSummaryCurrency(monthlyIncome) : censoredText;
+        expenseAmountEl.textContent = isVisible ? formatSummaryCurrency(monthlyExpense) : censoredText;
+        monthlySavingsAmountEl.textContent = isVisible ? formatSummaryCurrency(monthlySavings) : censoredText;
+        netWorthAmountEl.textContent = isVisible ? formatSummaryCurrency(netWorth) : censoredText;
 
         renderExpenseCategoryBars(expenseByCategory, monthlyExpense, isVisible, censoredText);
         renderCumulativeExpenseTrendChart(trendTransactions, currentYear, currentMonth);
@@ -442,6 +495,9 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const targetValue = Number(state.settings.monthlySavingsTarget ?? 500);
         if (document.activeElement !== monthlySavingsTargetInput) {
             monthlySavingsTargetInput.value = Number.isFinite(targetValue) ? String(targetValue) : '500';
+        }
+        if (compactCurrencyToggle) {
+            compactCurrencyToggle.checked = state.settings.useCompactCurrency !== false;
         }
         if (settingsStatus) {
             settingsStatus.textContent = '';
@@ -966,6 +1022,9 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     });
 
     eraseDataBtn.addEventListener('click', () => {
+        const today = new Date();
+        const expectedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+        const expectedPhrase = 'I want to delete all my data';
         // Use a custom modal instead of confirm()
         const modalHTML = `
             <div class="text-center">
@@ -974,14 +1033,49 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 </div>
                 <h3 class="mt-2 text-lg font-semibold text-foreground">Erase All Data?</h3>
                 <p class="mt-2 text-sm text-muted-foreground">Are you sure you want to erase ALL data, including transactions and categories? This action is permanent and cannot be undone.</p>
+                <div class="mt-4 space-y-3 text-left">
+                    <div>
+                        <label class="block text-xs font-medium text-muted-foreground">Type today's date (dd/mm/yyyy)</label>
+                        <input id="erase-date-input" type="text" placeholder="${expectedDate}" class="mt-1 block w-full rounded-md border-border bg-card/80 px-3 py-2 text-sm text-foreground shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-muted-foreground">Type this exact phrase</label>
+                        <input id="erase-phrase-input" type="text" placeholder="${expectedPhrase}" class="mt-1 block w-full rounded-md border-border bg-card/80 px-3 py-2 text-sm text-foreground shadow-sm">
+                    </div>
+                    <p id="erase-validation-error" class="text-xs text-rose-400 hidden">Both fields must match exactly.</p>
+                </div>
                 <div class="mt-5 sm:mt-6 flex justify-center space-x-3">
-                    <button id="confirm-erase" class="btn-danger w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Yes, Erase Everything</button>
+                    <button id="confirm-erase" class="btn-danger w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm" disabled>Yes, Erase Everything</button>
                     <button class="close-modal-btn btn-secondary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">Cancel</button>
                 </div>
             </div>`;
         openModal(modalHTML);
 
+        const dateInput = document.getElementById('erase-date-input');
+        const phraseInput = document.getElementById('erase-phrase-input');
+        const confirmBtn = document.getElementById('confirm-erase');
+        const errorEl = document.getElementById('erase-validation-error');
+
+        const validateEraseInputs = () => {
+            const isDateValid = dateInput?.value === expectedDate;
+            const isPhraseValid = phraseInput?.value === expectedPhrase;
+            const isValid = isDateValid && isPhraseValid;
+            if (confirmBtn) {
+                confirmBtn.disabled = !isValid;
+            }
+            if (errorEl) {
+                errorEl.classList.toggle('hidden', isValid || (!dateInput?.value && !phraseInput?.value));
+            }
+            return isValid;
+        };
+
+        dateInput?.addEventListener('input', validateEraseInputs);
+        phraseInput?.addEventListener('input', validateEraseInputs);
+
         document.getElementById('confirm-erase').addEventListener('click', async () => {
+            if (!validateEraseInputs()) {
+                return;
+            }
             const user = await requireUser();
             if (!user) return;
 
@@ -1099,6 +1193,47 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             assetId,
         };
         if (!transactionData.date || !transactionData.amount || !transactionData.description || !assetId || !transactionData.category) { return; }
+
+        const selectedAsset = state.assets.find(a => a.id === assetId);
+        const newEffect = getTransactionEffect(type, amount);
+
+        if (state.ui.formMode === 'edit') {
+            const existing = state.transactions.find(t => t.id === id);
+            if (existing) {
+                const oldEffect = getTransactionEffect(existing.type, existing.amount);
+                if (existing.assetId === assetId) {
+                    if (selectedAsset) {
+                        const nextBalance = selectedAsset.balance - oldEffect + newEffect;
+                        if (nextBalance < 0) {
+                            showInsufficientFundsModal(selectedAsset.name, selectedAsset.balance, amount);
+                            return;
+                        }
+                    }
+                } else {
+                    const oldAsset = state.assets.find(a => a.id === existing.assetId);
+                    if (oldAsset) {
+                        const nextOldBalance = oldAsset.balance - oldEffect;
+                        if (nextOldBalance < 0) {
+                            showInsufficientFundsModal(oldAsset.name, oldAsset.balance, existing.amount);
+                            return;
+                        }
+                    }
+                    if (selectedAsset) {
+                        const nextNewBalance = selectedAsset.balance + newEffect;
+                        if (nextNewBalance < 0) {
+                            showInsufficientFundsModal(selectedAsset.name, selectedAsset.balance, amount);
+                            return;
+                        }
+                    }
+                }
+            } else if (type === 'expense' && selectedAsset && selectedAsset.balance - amount < 0) {
+                showInsufficientFundsModal(selectedAsset.name, selectedAsset.balance, amount);
+                return;
+            }
+        } else if (type === 'expense' && selectedAsset && selectedAsset.balance - amount < 0) {
+            showInsufficientFundsModal(selectedAsset.name, selectedAsset.balance, amount);
+            return;
+        }
 
         const categoryRecord = getCategoryRecord(type, transactionData.category) || getSystemCategory(type, transactionData.category);
         if (!categoryRecord) {
@@ -1334,20 +1469,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                  <div>
                      <h3 class="font-semibold mb-2">Export Data</h3>
                      <div class="flex space-x-2">
-                         <button id="export-json-btn" class="w-full btn-secondary py-2 px-4 rounded-md text-sm">Export as JSON</button>
                          <button id="export-csv-btn" class="w-full btn-secondary py-2 px-4 rounded-md text-sm">Export as CSV</button>
                      </div>
                  </div>
                   <div>
                      <h3 class="font-semibold mb-2">Import Data</h3>
-                     <p class="text-sm text-muted-foreground mb-1">Import a JSON file. This will overwrite current data.</p>
-                     <div class="flex gap-2">
-                         <input type="file" id="import-json-input" accept=".json" class="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/10 file:text-accent-foreground hover:file:bg-accent/20"/>
-                         <button id="submit-json-import" class="btn-primary px-3 py-1 rounded-md text-sm">Import</button>
-                     </div>
-                     <p id="json-error" class="text-red-500 text-sm mt-1"></p>
-
-                     <p class="text-sm text-muted-foreground mb-1 mt-4">Import a CSV file. This will add to current data.</p>
+                     <p class="text-sm text-muted-foreground mb-1">Import a CSV file. This will add to current data.</p>
                      <div class="flex gap-2">
                          <input type="file" id="import-csv-input" accept=".csv" class="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/10 file:text-accent-foreground hover:file:bg-accent/20"/>
                          <button id="submit-csv-import" class="btn-primary px-3 py-1 rounded-md text-sm">Import</button>
@@ -1556,19 +1683,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             manageCategoriesBtn.click(); 
         }
 
-        if (e.target.id === 'export-json-btn') exportToJSON();
         if (e.target.id === 'export-csv-btn') exportToCSV();
-
-        if (e.target.id === 'submit-json-import') {
-            const fileInput = modalContent.querySelector('#import-json-input');
-            const errorEl = modalContent.querySelector('#json-error');
-            errorEl.textContent = ''; // Clear previous errors
-            if (fileInput.files.length > 0) {
-                importFromJSON(fileInput.files[0]);
-            } else {
-                errorEl.textContent = 'Please select a JSON file first.';
-            }
-        }
 
         if (e.target.id === 'submit-csv-import') {
             const fileInput = modalContent.querySelector('#import-csv-input');
@@ -1586,22 +1701,183 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // DATA IMPORT/EXPORT
     // -------------------------------------------------------------------------
 
-    const exportToJSON = () => {
-        const dataStr = JSON.stringify(state, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', `budget_tracker_data_${new Date().toISOString().split('T')[0]}.json`);
-        linkElement.click();
-        closeModal();
+    const csvEscape = (value) => {
+        if (value === null || value === undefined) return '';
+        const stringValue = String(value);
+        const escaped = stringValue.replace(/"/g, '""');
+        return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped;
     };
-    
+
+    const parseCSV = (text) => {
+        const rows = [];
+        let row = [];
+        let field = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i += 1) {
+            const char = text[i];
+            const next = text[i + 1];
+
+            if (inQuotes) {
+                if (char === '"') {
+                    if (next === '"') {
+                        field += '"';
+                        i += 1;
+                    } else {
+                        inQuotes = false;
+                    }
+                } else {
+                    field += char;
+                }
+                continue;
+            }
+
+            if (char === '"') {
+                inQuotes = true;
+                continue;
+            }
+
+            if (char === ',') {
+                row.push(field);
+                field = '';
+                continue;
+            }
+
+            if (char === '\n') {
+                row.push(field);
+                rows.push(row);
+                row = [];
+                field = '';
+                continue;
+            }
+
+            if (char === '\r') {
+                if (next === '\n') {
+                    i += 1;
+                }
+                row.push(field);
+                rows.push(row);
+                row = [];
+                field = '';
+                continue;
+            }
+
+            field += char;
+        }
+
+        if (field.length > 0 || row.length > 0) {
+            row.push(field);
+            rows.push(row);
+        }
+
+        return rows;
+    };
+
+    const normalizeHeaderName = (value) => {
+        if (!value) return '';
+        return value
+            .toString()
+            .replace(/^\uFEFF/, '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+    };
+
+    const HEADER_ALIASES = {
+        id: 'transaction_id',
+        transactionid: 'transaction_id',
+        date: 'transaction_date',
+        transactiondate: 'transaction_date',
+        type: 'transaction_type',
+        transactiontype: 'transaction_type',
+        amount: 'amount',
+        description: 'description',
+        note: 'note',
+        assetid: 'asset_id',
+        assetname: 'asset_name',
+        category: 'category_name',
+        categoryname: 'category_name',
+        categorytype: 'category_type',
+        categorycolor: 'category_color',
+        categoryissystem: 'category_is_system',
+        createdat: 'transaction_created_at',
+        transactioncreatedat: 'transaction_created_at'
+    };
+
+    const buildHeaderMap = (headers) => {
+        const map = {};
+        headers.forEach((header, index) => {
+            const normalized = normalizeHeaderName(header);
+            if (!normalized) return;
+            const canonical = HEADER_ALIASES[normalized] || normalized;
+            map[canonical] = index;
+        });
+        return map;
+    };
+
+    const parseBoolean = (value) => {
+        if (value === true || value === false) return value;
+        if (value === null || value === undefined) return false;
+        const normalized = String(value).trim().toLowerCase();
+        if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+        if (['false', '0', 'no', 'n', ''].includes(normalized)) return false;
+        return false;
+    };
+
+    const chunkArray = (items, size) => {
+        const chunks = [];
+        for (let i = 0; i < items.length; i += size) {
+            chunks.push(items.slice(i, i + size));
+        }
+        return chunks;
+    };
+
+    const setCsvStatus = (message, isError = false) => {
+        const errorEl = modalContent.querySelector('#csv-error');
+        if (!errorEl) return;
+        errorEl.textContent = message;
+        errorEl.classList.toggle('text-red-500', isError);
+        errorEl.classList.toggle('text-emerald-400', !isError);
+    };
+
     const exportToCSV = () => {
-        const headers = 'ID,Date,Type,Category,Description,Amount,Note,AssetID';
+        const headers = [
+            'transaction_id',
+            'transaction_date',
+            'transaction_type',
+            'amount',
+            'description',
+            'note',
+            'asset_id',
+            'asset_name',
+            'category_name',
+            'category_type',
+            'category_color',
+            'category_is_system',
+            'transaction_created_at'
+        ].join(',');
+
+        const assetsById = new Map(state.assets.map(asset => [asset.id, asset]));
+        const categoriesByKey = new Map(state.categories.map(cat => [`${cat.type}:${cat.name}`, cat]));
+
         const rows = state.transactions.map(t => {
-            const description = `"${(t.description || '').replace(/"/g, '""')}"`;
-            const note = `"${(t.note || '').replace(/"/g, '""')}"`;
-            return [t.id, t.date, t.type, t.category, description, t.amount, note, t.assetId].join(',');
+            const asset = assetsById.get(t.assetId);
+            const category = categoriesByKey.get(`${t.type}:${t.category}`);
+            return [
+                t.id,
+                t.date,
+                t.type,
+                t.amount,
+                t.description,
+                t.note,
+                t.assetId,
+                asset?.name || '',
+                t.category,
+                category?.type || t.type,
+                category?.color || '',
+                category?.is_system ?? false,
+                t.createdAt || ''
+            ].map(csvEscape).join(',');
         }).join('\n');
 
         const csvContent = `${headers}\n${rows}`;
@@ -1613,18 +1889,231 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         closeModal();
     };
 
-    const importFromJSON = () => {
-        const errorEl = modalContent.querySelector('#json-error');
-        if (errorEl) {
-            errorEl.textContent = 'Import is not available yet with cloud sync.';
+    const importFromCSV = async (file) => {
+        const user = await requireUser();
+        if (!user) return;
+
+        setCsvStatus('Reading CSV...', false);
+
+        let text;
+        try {
+            text = await file.text();
+        } catch (error) {
+            console.error('Failed to read CSV file', error);
+            setCsvStatus('Failed to read the CSV file.', true);
+            return;
         }
-    };
-    
-    const importFromCSV = () => {
-        const errorEl = modalContent.querySelector('#csv-error');
-        if (errorEl) {
-            errorEl.textContent = 'Import is not available yet with cloud sync.';
+
+        const rows = parseCSV(text).filter(row => row.some(cell => String(cell || '').trim() !== ''));
+        if (rows.length < 2) {
+            setCsvStatus('CSV file has no data rows.', true);
+            return;
         }
+
+        const headerMap = buildHeaderMap(rows[0]);
+        const requiredHeaders = ['transaction_date', 'transaction_type', 'amount', 'description', 'category_name'];
+        const missingHeaders = requiredHeaders.filter(key => headerMap[key] === undefined);
+        const hasAssetHeader = headerMap.asset_id !== undefined || headerMap.asset_name !== undefined;
+
+        if (!hasAssetHeader) {
+            missingHeaders.push('asset_id or asset_name');
+        }
+
+        if (missingHeaders.length > 0) {
+            setCsvStatus(`Missing required columns: ${missingHeaders.join(', ')}`, true);
+            return;
+        }
+
+        await loadState();
+
+        const existingAssetsById = new Map(state.assets.map(asset => [asset.id, asset]));
+        const existingAssetsByName = new Map(state.assets.map(asset => [asset.name.toLowerCase(), asset]));
+        const existingCategoriesByKey = new Map(state.categories.map(cat => [`${cat.type}:${cat.name}`, cat]));
+
+        const preparedRows = [];
+        const rowErrors = [];
+
+        const getValue = (row, key) => {
+            const index = headerMap[key];
+            if (index === undefined) return '';
+            return String(row[index] ?? '').trim();
+        };
+
+        rows.slice(1).forEach((row, index) => {
+            const rowNumber = index + 2;
+            const date = getValue(row, 'transaction_date');
+            const typeRaw = getValue(row, 'transaction_type');
+            const type = typeRaw.toLowerCase();
+            const amountRaw = getValue(row, 'amount');
+            const amount = parseFloat(amountRaw.replace(/,/g, ''));
+            const description = getValue(row, 'description');
+            const note = getValue(row, 'note');
+            const assetId = getValue(row, 'asset_id');
+            const assetName = getValue(row, 'asset_name');
+            const categoryName = getValue(row, 'category_name');
+            const categoryTypeRaw = getValue(row, 'category_type');
+            const categoryTypeCandidate = categoryTypeRaw ? categoryTypeRaw.toLowerCase() : '';
+            const categoryType = ['income', 'expense'].includes(categoryTypeCandidate) ? categoryTypeCandidate : type;
+            const categoryColor = getValue(row, 'category_color');
+            const categoryIsSystem = parseBoolean(getValue(row, 'category_is_system'));
+
+            if (!date) {
+                rowErrors.push(`Row ${rowNumber}: missing transaction_date`);
+                return;
+            }
+            if (!type || !['income', 'expense'].includes(type)) {
+                rowErrors.push(`Row ${rowNumber}: invalid transaction_type`);
+                return;
+            }
+            if (Number.isNaN(amount)) {
+                rowErrors.push(`Row ${rowNumber}: invalid amount`);
+                return;
+            }
+            if (!description) {
+                rowErrors.push(`Row ${rowNumber}: missing description`);
+                return;
+            }
+            if (!categoryName) {
+                rowErrors.push(`Row ${rowNumber}: missing category_name`);
+                return;
+            }
+            if (!assetId && !assetName) {
+                rowErrors.push(`Row ${rowNumber}: missing asset_id or asset_name`);
+                return;
+            }
+
+            preparedRows.push({
+                date,
+                type,
+                amount,
+                description,
+                note,
+                assetId,
+                assetName,
+                categoryName,
+                categoryType,
+                categoryColor,
+                categoryIsSystem
+            });
+        });
+
+        const invalidRows = rowErrors.length;
+        if (preparedRows.length === 0) {
+            const preview = rowErrors.slice(0, 4).join(' | ');
+            const suffix = rowErrors.length > 4 ? ` (and ${rowErrors.length - 4} more)` : '';
+            setCsvStatus(`No valid rows to import. ${preview}${suffix}`, true);
+            return;
+        }
+
+        const categoriesToCreateMap = new Map();
+        preparedRows.forEach(row => {
+            const type = row.categoryType || row.type;
+            const key = `${type}:${row.categoryName}`;
+            if (existingCategoriesByKey.has(key) || categoriesToCreateMap.has(key)) return;
+            const isExpense = type === 'expense';
+            const color = isExpense ? (row.categoryColor || getRandomColor()) : null;
+            categoriesToCreateMap.set(key, {
+                user_id: currentUserId,
+                type,
+                name: row.categoryName,
+                color,
+                is_system: row.categoryIsSystem || false
+            });
+        });
+
+        if (categoriesToCreateMap.size > 0) {
+            const { error } = await supabase.from('categories').insert(Array.from(categoriesToCreateMap.values()));
+            if (error) {
+                console.error('Failed to create categories', error);
+                setCsvStatus('Failed to create categories during import.', true);
+                return;
+            }
+            await loadState();
+        }
+
+        const assetsToCreateMap = new Map();
+        const resolveExistingAssetId = (row, assetsById, assetsByName) => {
+            if (row.assetId && assetsById.has(row.assetId)) return row.assetId;
+            if (row.assetName) {
+                const match = assetsByName.get(row.assetName.toLowerCase());
+                if (match) return match.id;
+            }
+            return null;
+        };
+
+        preparedRows.forEach(row => {
+            const existingId = resolveExistingAssetId(row, existingAssetsById, existingAssetsByName);
+            if (existingId) return;
+            if (!row.assetName) return;
+            const key = row.assetName.toLowerCase();
+            if (!assetsToCreateMap.has(key)) {
+                assetsToCreateMap.set(key, row.assetName);
+            }
+        });
+
+        if (assetsToCreateMap.size > 0) {
+            const assetsToCreate = Array.from(assetsToCreateMap.values()).map(name => ({
+                user_id: currentUserId,
+                name,
+                balance: 0
+            }));
+            const { error } = await supabase.from('assets').insert(assetsToCreate);
+            if (error) {
+                console.error('Failed to create assets', error);
+                setCsvStatus('Failed to create assets during import.', true);
+                return;
+            }
+            await loadState();
+        }
+
+        const categoriesByKey = new Map(state.categories.map(cat => [`${cat.type}:${cat.name}`, cat]));
+        const assetsById = new Map(state.assets.map(asset => [asset.id, asset]));
+        const assetsByName = new Map(state.assets.map(asset => [asset.name.toLowerCase(), asset]));
+
+        const transactionsToInsert = [];
+        let skipped = 0;
+
+        preparedRows.forEach(row => {
+            const assetId = resolveExistingAssetId(row, assetsById, assetsByName);
+            const categoryKey = `${row.categoryType || row.type}:${row.categoryName}`;
+            const category = categoriesByKey.get(categoryKey);
+            if (!assetId || !category) {
+                skipped += 1;
+                return;
+            }
+            transactionsToInsert.push({
+                user_id: currentUserId,
+                asset_id: assetId,
+                category_id: category.id,
+                type: row.type,
+                amount: row.amount,
+                description: row.description,
+                note: row.note || null,
+                transaction_date: row.date
+            });
+        });
+
+        if (transactionsToInsert.length === 0) {
+            setCsvStatus('No valid transactions to import after validation.', true);
+            return;
+        }
+
+        const chunks = chunkArray(transactionsToInsert, 500);
+        for (let i = 0; i < chunks.length; i += 1) {
+            const { error } = await supabase.from('transactions').insert(chunks[i]);
+            if (error) {
+                console.error('Failed to import transactions', error);
+                setCsvStatus(`Failed to import transactions (batch ${i + 1}).`, true);
+                return;
+            }
+        }
+
+        await loadState();
+        render();
+
+        const totalSkipped = skipped + invalidRows;
+        const skippedMessage = totalSkipped > 0 ? ` Skipped ${totalSkipped} row${totalSkipped === 1 ? '' : 's'}.` : '';
+        setCsvStatus(`Imported ${transactionsToInsert.length} transaction${transactionsToInsert.length === 1 ? '' : 's'}.${skippedMessage}`, false);
     };
 
 
@@ -1735,76 +2224,30 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     };
     
     const renderExpensePieChart = (transactions) => {
-        const emptyMsg = document.getElementById('expense-chart-empty');
-        const ctx = document.getElementById('expense-chart').getContext('2d');
-        const expenses = transactions.filter(t => t.type === 'expense');
-
-        if (expenses.length === 0) {
-            emptyMsg.classList.remove('hidden');
-            return;
-        }
-        emptyMsg.classList.add('hidden');
-
+        const expenses = transactions.filter(t => t.type === 'expense' && t.category !== 'Internal Transfer');
         const byCat = expenses.reduce((a, t) => {
             a[t.category] = (a[t.category] || 0) + t.amount;
             return a;
         }, {});
 
-        const labels = Object.keys(byCat);
-        const data = Object.values(byCat);
-        const backgroundColors = labels.map(label => state.expenseCategories.find(c => c.name === label)?.color || getRandomColor());
+        const entries = Object.entries(byCat)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount);
 
-        expensePieChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: backgroundColors,
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        onClick: (e, legendItem, legend) => {
-                            const chart = legend.chart;
-                            // 1. Manually replicate default Chart.js v4+ behavior for pie/doughnut charts
-                            chart.toggleDataVisibility(legendItem.index);
-                            chart.update();
-                            
-                            // 2. Sync our state with the chart's legend state
-                            state.ui.analytics.hiddenCategories = legend.legendItems
-                                .filter(item => item.hidden)
-                                .map(item => item.text);
-                            
-                            // 3. Re-render ONLY the trend chart with the updated filter state
-                            const filteredTimeTxs = getFilteredTransactions();
-                            const chartTxs = filteredTimeTxs.filter(t => t.category !== 'Internal Transfer');
-                            renderExpenseTrendChart(chartTxs);
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed !== null) {
-                                    label += formatCurrency(context.parsed);
-                                }
-                                return label;
-                            }
-                        }
-                    }
-                }
+        const colorMap = new Map(state.expenseCategories.map(cat => [cat.name, cat.color || '#38bdf8']));
+        const formattedEntries = entries.map(entry => ({
+            name: entry.name,
+            amount: entry.amount,
+            color: colorMap.get(entry.name) || '#38bdf8'
+        }));
+
+        const total = entries.reduce((sum, entry) => sum + entry.amount, 0);
+        window.dispatchEvent(new CustomEvent('budget:expense-breakdown', {
+            detail: {
+                total,
+                entries: formattedEntries
             }
-        });
+        }));
     };
 
     const renderExpenseTrendChart = (transactions) => {
@@ -1950,6 +2393,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return;
         }
 
+        if (fromAsset.balance - amount < 0) {
+            showInsufficientFundsModal(fromAsset.name, fromAsset.balance, amount);
+            return;
+        }
+
         const expenseCategory = getSystemCategory('expense', 'Internal Transfer') || getCategoryRecord('expense', 'Internal Transfer');
         const incomeCategory = getSystemCategory('income', 'Internal Transfer') || getCategoryRecord('income', 'Internal Transfer');
 
@@ -2007,6 +2455,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             if (!user) return;
 
             const nextTarget = Number(monthlySavingsTargetInput.value);
+            const nextCompact = compactCurrencyToggle ? compactCurrencyToggle.checked : true;
             if (!Number.isFinite(nextTarget) || nextTarget < 0) {
                 if (settingsStatus) {
                     settingsStatus.textContent = 'Enter a valid monthly target.';
@@ -2025,7 +2474,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 .upsert(
                     {
                         user_id: currentUserId,
-                        monthly_savings_target: nextTarget
+                        monthly_savings_target: nextTarget,
+                        use_compact_currency: nextCompact
                     },
                     { onConflict: 'user_id' }
                 );
@@ -2040,6 +2490,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }
 
             state.settings.monthlySavingsTarget = nextTarget;
+            state.settings.useCompactCurrency = nextCompact;
             if (settingsStatus) {
                 settingsStatus.textContent = 'Settings saved.';
                 settingsStatus.className = 'text-xs text-emerald-400';
@@ -2199,6 +2650,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const newName = nameInput.value.trim();
             const newBalance = parseFloat(balanceInput.value);
             const assetId = listItem.dataset.id;
+
+            if (!isNaN(newBalance) && newBalance < 0) {
+                showInsufficientFundsModal(newName || listItem.dataset.name, newBalance, newBalance);
+                return;
+            }
 
             if (newName && !isNaN(newBalance)) {
                 const { error } = await supabase

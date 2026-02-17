@@ -304,7 +304,6 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                             <button id="erase-data-btn" class="h-9 px-4 btn-danger rounded-md text-sm">Erase All Data</button>
                         </div>
                     </div>
-
                     <!-- Full Transaction List -->
                     <div id="full-transaction-list-container" class="transaction-list h-[600px] overflow-y-auto pr-2">
                         <!-- JS renders full list here -->
@@ -385,14 +384,8 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                 </div>
 
                 <!-- Charts -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div class="card card-glow p-6">
-                        <h3 class="text-xl font-semibold text-foreground mb-4">Expense by Category</h3>
-                        <div id="expense-chart-container">
-                            <canvas id="expense-chart"></canvas>
-                             <div id="expense-chart-empty" class="absolute inset-0 flex items-center justify-center text-muted-foreground hidden">No expense data for this period.</div>
-                        </div>
-                    </div>
+                <div class="grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] gap-8">
+                    <div id="expense-by-category-slot"></div>
                     <div class="card card-glow p-6">
                         <h3 class="text-xl font-semibold text-foreground mb-4">Expense Trend</h3>
                         <div id="expense-trend-chart-container">
@@ -407,7 +400,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div class="card card-glow p-6">
                         <h2 class="text-xl font-semibold text-foreground mb-2">Settings</h2>
-                        <p class="text-sm text-muted-foreground mb-6">Update your monthly savings target.</p>
+                        <p class="text-sm text-muted-foreground mb-6">Update your monthly savings target and display options.</p>
                         <form id="settings-form" class="space-y-4">
                             <div>
                                 <label for="monthly-savings-target" class="block text-sm font-medium text-muted-foreground">Monthly Savings Target</label>
@@ -418,6 +411,13 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                                     <input type="number" id="monthly-savings-target" class="block w-full rounded-md border-border pl-7 pr-2 sm:text-sm" step="0.01" min="0" value="500">
                                 </div>
                             </div>
+                            <label for="compact-currency-toggle" class="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card/60 px-4 py-3">
+                                <div>
+                                    <p class="text-sm font-medium text-foreground">Compact currency</p>
+                                    <p class="text-xs text-muted-foreground">Show summary amounts as K/M abbreviations.</p>
+                                </div>
+                                <input id="compact-currency-toggle" type="checkbox" class="h-4 w-4 accent-accent" checked>
+                            </label>
                             <button type="submit" class="btn-primary px-4 py-2 rounded-md">Save Settings</button>
                             <p id="settings-status" class="text-xs text-muted-foreground"></p>
                         </form>

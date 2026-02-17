@@ -270,26 +270,55 @@
   }
 }
 
-.budget-dashboard .transaction-list::-webkit-scrollbar {
-  width: 8px;
+.budget-dashboard #full-transaction-list-container::-webkit-scrollbar {
+  width: 10px;
 }
 
-.budget-dashboard .transaction-list::-webkit-scrollbar-track {
+.budget-dashboard #full-transaction-list-container::-webkit-scrollbar-track {
   background: color-mix(in srgb, var(--card) 90%, transparent);
 }
 
-.budget-dashboard .transaction-list::-webkit-scrollbar-thumb {
+.budget-dashboard #full-transaction-list-container::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--muted) 70%, black);
   border-radius: 4px;
 }
 
-.budget-dashboard .transaction-list::-webkit-scrollbar-thumb:hover {
+.budget-dashboard #full-transaction-list-container::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--muted) 50%, black);
 }
 
-.budget-dashboard .transaction-list {
+.dark .budget-dashboard #full-transaction-list-container::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--card) 75%, white);
+}
+
+.dark .budget-dashboard #full-transaction-list-container::-webkit-scrollbar-thumb {
+  background: #ffffff;
+}
+
+.dark .budget-dashboard #full-transaction-list-container::-webkit-scrollbar-thumb:hover {
+  background: #f1f5f9;
+}
+
+.budget-dashboard #full-transaction-list-container {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 70%, black) color-mix(in srgb, var(--card) 90%, transparent);
   content-visibility: auto;
   contain-intrinsic-size: 600px;
+}
+
+.dark .budget-dashboard #full-transaction-list-container {
+  scrollbar-color: #ffffff color-mix(in srgb, var(--card) 75%, white);
+}
+
+.budget-dashboard #transaction-list-container {
+  scrollbar-width: none;
+}
+
+.budget-dashboard #transaction-list-container::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .budget-dashboard .content-animate {
@@ -410,13 +439,189 @@
   transform: rotate(180deg);
 }
 
-.budget-dashboard #expense-chart-container,
 .budget-dashboard #expense-trend-chart-container,
 .budget-dashboard #asset-chart-container,
 .budget-dashboard #cashflow-trend-chart-container {
   position: relative;
   width: 100%;
   height: 20rem;
+}
+
+.budget-dashboard #expense-by-category-slot {
+  width: min(100%, 500px);
+  justify-self: start;
+}
+
+.budget-dashboard .expense-gauge-card {
+  width: 100%;
+}
+
+.budget-dashboard .expense-gauge-header-divider {
+  width: calc(100% + 3rem);
+  height: 1px;
+  margin: -0.15rem -1.5rem 0.95rem;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.budget-dashboard .expense-gauge {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.budget-dashboard .expense-gauge--semi {
+  align-items: flex-start;
+  min-height: 13.75rem;
+}
+
+.budget-dashboard .expense-gauge-svg {
+  width: min(100%, 350px);
+  height: auto;
+  display: block;
+}
+
+.budget-dashboard .expense-gauge-segment {
+  cursor: pointer;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.budget-dashboard .expense-gauge-segment:hover {
+  opacity: 0.96;
+  filter: saturate(1.08);
+}
+
+.budget-dashboard .expense-gauge-tooltip {
+  position: absolute;
+  z-index: 8;
+  transform: translate(-50%, calc(-100% - 10px));
+  pointer-events: none;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  background: color-mix(in srgb, var(--popover) 92%, black);
+  color: var(--popover-foreground);
+  display: grid;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+}
+
+.budget-dashboard .expense-gauge-tooltip-name {
+  color: color-mix(in srgb, var(--popover-foreground) 86%, var(--accent));
+  font-weight: 600;
+}
+
+.budget-dashboard .expense-gauge-center {
+  position: absolute;
+  left: 50%;
+  top: 63%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  width: min(70%, 240px);
+}
+
+.budget-dashboard .expense-gauge-value {
+  font-size: 1.85rem;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--foreground);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-dashboard .expense-gauge-label {
+  margin-top: 0.2rem;
+  font-size: 0.86rem;
+  color: var(--muted-foreground);
+}
+
+.budget-dashboard .expense-gauge-list {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.budget-dashboard .expense-gauge-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0;
+}
+
+.budget-dashboard .expense-gauge-item-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.budget-dashboard .expense-gauge-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.budget-dashboard .expense-gauge-name {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.budget-dashboard .expense-gauge-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  min-width: 168px;
+  font-size: 1rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-dashboard .expense-gauge-meta span:first-child {
+  color: color-mix(in srgb, var(--muted-foreground) 92%, var(--foreground));
+}
+
+.budget-dashboard .expense-gauge-meta span:last-child {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.budget-dashboard .expense-gauge-sep {
+  color: color-mix(in srgb, var(--muted-foreground) 82%, var(--foreground));
+}
+
+@media (max-width: 1023px) {
+  .budget-dashboard #expense-by-category-slot {
+    width: min(100%, 560px);
+    margin-inline: auto;
+  }
+
+  .budget-dashboard .expense-gauge-svg {
+    width: min(100%, 330px);
+  }
+
+  .budget-dashboard .expense-gauge-value {
+    font-size: 1.65rem;
+  }
+
+  .budget-dashboard .expense-gauge-name {
+    font-size: 1rem;
+  }
+
+  .budget-dashboard .expense-gauge-meta {
+    font-size: 0.98rem;
+  }
 }
 
 .budget-dashboard .equal-height-card {
