@@ -1,6 +1,7 @@
 "use client";
 
 import Script from "next/script";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
@@ -9,7 +10,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -105,32 +105,6 @@ const navItems: { id: DashboardPage; label: string; icon: JSX.Element }[] = [
       </svg>
     ),
   },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        className="h-5 w-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 2v2" />
-        <path d="M12 20v2" />
-        <path d="m4.93 4.93 1.41 1.41" />
-        <path d="m17.66 17.66 1.41 1.41" />
-        <path d="M2 12h2" />
-        <path d="M20 12h2" />
-        <path d="m4.93 19.07 1.41-1.41" />
-        <path d="m17.66 6.34 1.41-1.41" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-  },
 ];
 
 const pageTitles: Record<DashboardPage, string> = {
@@ -150,7 +124,6 @@ export default function DashboardClient({
     initialPage ?? "tracker"
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [searchFocused, setSearchFocused] = useState(false);
   const initializedRef = useRef(false);
@@ -194,22 +167,6 @@ export default function DashboardClient({
       window.removeEventListener(
         "budget:page-change",
         handlePageChange as EventListener
-      );
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleUserChange = (event: Event) => {
-      const detail = (event as CustomEvent<{ email?: string }>).detail;
-      if (!detail) return;
-      setUserEmail(detail.email || null);
-    };
-    window.addEventListener("budget:user-change", handleUserChange as EventListener);
-    return () => {
-      window.removeEventListener(
-        "budget:user-change",
-        handleUserChange as EventListener
       );
     };
   }, []);
@@ -263,23 +220,31 @@ export default function DashboardClient({
             sidebarCollapsed ? "w-[72px]" : "w-[260px]"
           )}
         >
-          <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-white/10 text-sidebar-foreground">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 6v12" />
-                  <path d="M8 10h8" />
-                </svg>
+          <div
+            className={cn(
+              "h-16 flex items-center border-b border-sidebar-border",
+              sidebarCollapsed ? "px-2" : "px-4"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center min-w-0",
+                sidebarCollapsed ? "gap-2" : "gap-3"
+              )}
+            >
+              <div
+                className={cn(
+                  "rounded-lg flex items-center justify-center shrink-0 text-sidebar-foreground",
+                  sidebarCollapsed ? "w-10 h-10" : "w-12 h-12"
+                )}
+              >
+                <Image
+                  src="/logo.svg"
+                  alt="B-Track7"
+                  width={32}
+                  height={32}
+                  className={cn(sidebarCollapsed ? "w-6 h-6" : "w-8 h-8")}
+                />
               </div>
               <span
                 className={cn(
@@ -290,6 +255,42 @@ export default function DashboardClient({
                 B-Track7
               </span>
             </div>
+            <button
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              className={cn(
+                "ml-auto rounded-lg flex items-center justify-center text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200",
+                sidebarCollapsed ? "h-8 w-8" : "h-9 w-9"
+              )}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              )}
+            </button>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
             {navItems.map((item) => {
@@ -334,28 +335,44 @@ export default function DashboardClient({
             })}
           </nav>
           <div className="p-3 border-t border-sidebar-border">
-            <button
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200"
-            >
-              {sidebarCollapsed ? (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                    "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                  )}
+                  aria-label="My account"
                 >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              ) : (
-                <>
+                  <span className="w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 21a8 8 0 0 0-16 0" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </span>
+                  <span
+                    className={cn(
+                      "flex-1 text-left whitespace-nowrap transition-all duration-300",
+                      sidebarCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
+                    )}
+                  >
+                    My Account
+                  </span>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-5 h-5"
+                    className={cn(
+                      "w-4 h-4 text-muted-foreground transition-all duration-300",
+                      sidebarCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
+                    )}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -363,12 +380,60 @@ export default function DashboardClient({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <polyline points="15 18 9 12 15 6" />
+                    <polyline points="9 18 15 12 9 6" />
                   </svg>
-                  <span>Collapse</span>
-                </>
-              )}
-            </button>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="right" align="start" sideOffset={12} className="w-52">
+                <DropdownMenuItem
+                  onClick={() => handleNavigate("settings")}
+                  className="cursor-pointer gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4 text-muted-foreground"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 2v2" />
+                    <path d="M12 20v2" />
+                    <path d="m4.93 4.93 1.41 1.41" />
+                    <path d="m17.66 17.66 1.41 1.41" />
+                    <path d="M2 12h2" />
+                    <path d="M20 12h2" />
+                    <path d="m4.93 19.07 1.41-1.41" />
+                    <path d="m17.66 6.34 1.41-1.41" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  className="cursor-pointer gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4 text-muted-foreground"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </aside>
         <div
@@ -550,35 +615,6 @@ export default function DashboardClient({
                 </svg>
                 <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full animate-pulse" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="h-9 w-9 rounded-lg bg-secondary/80 text-foreground hover:bg-secondary"
-                    aria-label="Open user menu"
-                  >
-                    <span className="text-xs font-semibold">
-                      {userEmail ? userEmail.slice(0, 2).toUpperCase() : "JD"}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="text-[0.65rem] uppercase tracking-[0.2em] text-muted-foreground">
-                    Signed in as
-                  </DropdownMenuLabel>
-                  <div className="px-2 pb-2 text-sm font-semibold truncate">
-                    {userEmail || "Account"}
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={handleSignOut}
-                    className="cursor-pointer font-medium"
-                  >
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </header>
           <main className="flex-1 p-6 overflow-auto">

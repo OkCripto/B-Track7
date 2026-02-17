@@ -276,6 +276,22 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         }).format(amount);
     };
 
+    const formatCompactCurrency = (amount) => {
+        const abs = Math.abs(amount);
+        const sign = amount < 0 ? '-' : '';
+        if (abs >= 1_000_000) {
+            const value = abs / 1_000_000;
+            const fixed = value >= 10 ? value.toFixed(0) : value.toFixed(1);
+            return `${sign}₹${fixed}M`;
+        }
+        if (abs >= 1_000) {
+            const value = abs / 1_000;
+            const fixed = value >= 10 ? value.toFixed(0) : value.toFixed(1);
+            return `${sign}₹${fixed}K`;
+        }
+        return formatCurrency(amount);
+    };
+
     const formatDateForInput = (date) => {
         return new Date(date).toISOString().split('T')[0];
     };
@@ -293,20 +309,40 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     const applyDelta = (el, current, previous) => {
         if (!el) return;
+        const container = el.closest('.delta-indicator') || el.parentElement;
+        const upIcon = container?.querySelector('.delta-icon-up');
+        const downIcon = container?.querySelector('.delta-icon-down');
+
+        const setIconState = (state) => {
+            if (upIcon && downIcon) {
+                upIcon.classList.toggle('hidden', state !== 'up');
+                downIcon.classList.toggle('hidden', state !== 'down');
+                upIcon.classList.remove('text-emerald-400', 'text-rose-400', 'text-muted-foreground');
+                downIcon.classList.remove('text-emerald-400', 'text-rose-400', 'text-muted-foreground');
+                const colorClass = state === 'up' ? 'text-emerald-400' : state === 'down' ? 'text-rose-400' : 'text-muted-foreground';
+                upIcon.classList.add(colorClass);
+                downIcon.classList.add(colorClass);
+            }
+        };
+
         if (previous === 0) {
             if (current === 0) {
                 el.textContent = '0.0%';
                 el.className = 'font-semibold text-muted-foreground';
+                setIconState('neutral');
                 return;
             }
             el.textContent = '+100.0%';
             el.className = 'font-semibold text-emerald-400';
+            setIconState('up');
             return;
         }
+
         const change = ((current - previous) / Math.abs(previous)) * 100;
         const isUp = change >= 0;
         el.textContent = `${isUp ? '+' : ''}${change.toFixed(1)}%`;
         el.className = `font-semibold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`;
+        setIconState(isUp ? 'up' : 'down');
     };
 
     // -------------------------------------------------------------------------
@@ -336,7 +372,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
         let monthlyIncome = 0;
         let monthlyExpense = 0;
-        const monthTransactions = [];
+        const trendTransactions = state.transactions;
         const expenseByCategory = new Map();
         const categoryColorMap = new Map();
 
@@ -351,7 +387,6 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             if (transactionDate.getFullYear() !== currentYear || transactionDate.getMonth() !== currentMonth) return;
             if (t.category === 'Internal Transfer') return;
 
-            monthTransactions.push(t);
             if (t.type === 'income') {
                 monthlyIncome += t.amount;
             } else {
@@ -387,13 +422,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const netWorth = state.assets.reduce((sum, asset) => sum + asset.balance, 0);
         const prevNetWorth = netWorth - monthlySavings;
 
-        incomeAmountEl.textContent = isVisible ? formatCurrency(monthlyIncome) : censoredText;
-        expenseAmountEl.textContent = isVisible ? formatCurrency(monthlyExpense) : censoredText;
-        monthlySavingsAmountEl.textContent = isVisible ? formatCurrency(monthlySavings) : censoredText;
-        netWorthAmountEl.textContent = isVisible ? formatCurrency(netWorth) : censoredText;
+        incomeAmountEl.textContent = isVisible ? formatCompactCurrency(monthlyIncome) : censoredText;
+        expenseAmountEl.textContent = isVisible ? formatCompactCurrency(monthlyExpense) : censoredText;
+        monthlySavingsAmountEl.textContent = isVisible ? formatCompactCurrency(monthlySavings) : censoredText;
+        netWorthAmountEl.textContent = isVisible ? formatCompactCurrency(netWorth) : censoredText;
 
         renderExpenseCategoryBars(expenseByCategory, monthlyExpense, isVisible, censoredText);
-        renderSavingsTrendChart(monthTransactions, currentYear, currentMonth, state.settings.monthlySavingsTarget);
+        renderCumulativeExpenseTrendChart(trendTransactions, currentYear, currentMonth);
         applyDelta(incomeDeltaEl, monthlyIncome, prevIncome);
         applyDelta(expenseDeltaEl, monthlyExpense, prevExpense);
         applyDelta(savingsDeltaEl, monthlySavings, prevSavings);
@@ -437,9 +472,9 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             row.innerHTML = `
                 <div class="flex items-center justify-between text-xs text-muted-foreground">
                     <span class="text-sm font-medium text-foreground">${name}</span>
-                    <span>${isVisible ? formatCurrency(amount) : censoredText} &bull; ${percent}%</span>
+                    <span>${isVisible ? formatCompactCurrency(amount) : censoredText} &bull; ${percent}%</span>
                 </div>
-                <div class="h-2 rounded-full bg-muted/50 overflow-hidden">
+                <div class="h-1.5 rounded-full bg-muted/50 overflow-hidden">
                     <div class="h-full" style="width: ${percent}%; background-color: ${barColor};"></div>
                 </div>
             `;
@@ -447,7 +482,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         });
     };
 
-    const renderSavingsTrendChart = (transactions, year, month, target) => {
+    const renderCumulativeExpenseTrendChart = (transactions, year, month) => {
         if (!cashflowTrendCanvas) return;
         const ctx = cashflowTrendCanvas.getContext('2d');
         if (!ctx) return;
@@ -457,34 +492,111 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             cashflowTrendChart = null;
         }
 
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const labels = Array.from({ length: daysInMonth }, (_, i) => `${i + 1}`);
-        const dailySavings = Array(daysInMonth).fill(0);
+        const expenseTransactions = transactions.filter(t => t.type === 'expense' && t.category !== 'Internal Transfer');
+        const monthKey = (date) => `${date.getFullYear()}-${date.getMonth()}`;
+        const uniqueMonths = new Set(expenseTransactions.map(t => monthKey(new Date(t.date))));
+        const monthCount = uniqueMonths.size;
+        const useMonthlyView = monthCount >= 3;
 
-        transactions.forEach(t => {
-            const day = new Date(t.date).getDate();
-            const index = day - 1;
-            if (index < 0 || index >= daysInMonth) return;
-            dailySavings[index] += t.type === 'income' ? t.amount : -t.amount;
-        });
+        let labels = [];
+        let currentSeries = [];
+        let previousSeries = [];
 
-        let runningTotal = 0;
-        const savingsSeries = dailySavings.map(value => {
-            runningTotal += value;
-            return runningTotal;
-        });
+        if (useMonthlyView) {
+            const windowSize = Math.min(12, monthCount);
+            const buildMonthRange = (endDate, count) =>
+                Array.from({ length: count }, (_, i) =>
+                    new Date(endDate.getFullYear(), endDate.getMonth() - (count - 1 - i), 1)
+                );
 
-        const safeTarget = Number.isFinite(target) ? Math.max(0, Number(target)) : 0;
-        const targetSeries = labels.map((_, index) =>
-            safeTarget ? (safeTarget / daysInMonth) * (index + 1) : 0
-        );
+            const endMonth = new Date(year, month, 1);
+            const currentMonths = buildMonthRange(endMonth, windowSize);
+            const previousMonths = currentMonths.map(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
 
-        const hasData = savingsSeries.some(v => v !== 0) || safeTarget > 0;
+            const monthlyTotals = new Map();
+            expenseTransactions.forEach(t => {
+                const d = new Date(t.date);
+                const key = monthKey(d);
+                monthlyTotals.set(key, (monthlyTotals.get(key) || 0) + t.amount);
+            });
+
+            const getMonthlyTotal = (targetDate) =>
+                monthlyTotals.get(monthKey(targetDate)) || 0;
+
+            const currentTotals = currentMonths.map(getMonthlyTotal);
+            const previousTotals = previousMonths.map(getMonthlyTotal);
+
+            let runningCurrent = 0;
+            let runningPrevious = 0;
+            currentSeries = currentTotals.map(value => {
+                runningCurrent += value;
+                return runningCurrent;
+            });
+            previousSeries = previousTotals.map(value => {
+                runningPrevious += value;
+                return runningPrevious;
+            });
+
+            const spansYear = currentMonths[0].getFullYear() !== currentMonths[currentMonths.length - 1].getFullYear();
+            labels = currentMonths.map(d => {
+                if (!spansYear) {
+                    return d.toLocaleDateString('en-US', { month: 'short' });
+                }
+                const monthLabel = d.toLocaleDateString('en-US', { month: 'short' });
+                const yearLabel = String(d.getFullYear()).slice(-2);
+                return `${monthLabel} '${yearLabel}`;
+            });
+        } else {
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const previousMonthDate = new Date(year, month - 1, 1);
+            const prevYear = previousMonthDate.getFullYear();
+            const prevMonth = previousMonthDate.getMonth();
+            const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+
+            labels = Array.from({ length: daysInMonth }, (_, i) => `${i + 1}`);
+            const currentDaily = Array(daysInMonth).fill(0);
+            const previousDaily = Array(daysInMonth).fill(0);
+
+            expenseTransactions.forEach(t => {
+                const d = new Date(t.date);
+                const dayIndex = d.getDate() - 1;
+                if (d.getFullYear() === year && d.getMonth() === month) {
+                    if (dayIndex >= 0 && dayIndex < daysInMonth) {
+                        currentDaily[dayIndex] += t.amount;
+                    }
+                } else if (d.getFullYear() === prevYear && d.getMonth() === prevMonth) {
+                    if (dayIndex >= 0 && dayIndex < daysInPrevMonth && dayIndex < daysInMonth) {
+                        previousDaily[dayIndex] += t.amount;
+                    }
+                }
+            });
+
+            let runningCurrent = 0;
+            let runningPrevious = 0;
+            currentSeries = currentDaily.map(value => {
+                runningCurrent += value;
+                return runningCurrent;
+            });
+            previousSeries = previousDaily.map(value => {
+                runningPrevious += value;
+                return runningPrevious;
+            });
+        }
+
+        const hasData = currentSeries.some(v => v > 0) || previousSeries.some(v => v > 0);
         if (!hasData) {
             if (cashflowTrendEmptyEl) cashflowTrendEmptyEl.classList.remove('hidden');
             return;
         }
         if (cashflowTrendEmptyEl) cashflowTrendEmptyEl.classList.add('hidden');
+
+        const currentGradient = ctx.createLinearGradient(0, 0, 0, cashflowTrendCanvas.height || 300);
+        currentGradient.addColorStop(0, 'rgba(56, 189, 248, 0.35)');
+        currentGradient.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
+        const previousGradient = ctx.createLinearGradient(0, 0, 0, cashflowTrendCanvas.height || 300);
+        previousGradient.addColorStop(0, 'rgba(34, 197, 94, 0.2)');
+        previousGradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
 
         cashflowTrendChart = new Chart(ctx, {
             type: 'line',
@@ -492,23 +604,26 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 labels,
                 datasets: [
                     {
-                        label: 'Savings',
-                        data: savingsSeries,
+                        label: 'Current',
+                        data: currentSeries,
                         borderColor: '#38bdf8',
-                        backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                        backgroundColor: currentGradient,
                         fill: true,
                         tension: 0.35,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        pointStyle: 'circle'
                     },
                     {
-                        label: 'Target',
-                        data: targetSeries,
-                        borderColor: '#94a3b8',
-                        backgroundColor: 'rgba(148, 163, 184, 0.08)',
-                        borderDash: [6, 6],
-                        fill: false,
+                        label: 'Previous',
+                        data: previousSeries,
+                        borderColor: '#22c55e',
+                        backgroundColor: previousGradient,
+                        fill: true,
                         tension: 0.35,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        pointStyle: 'circle'
                     }
                 ]
             },
@@ -518,14 +633,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: {
-                        position: 'top',
-                        align: 'end',
-                        labels: {
-                            color: '#94a3b8',
-                            boxWidth: 10,
-                            boxHeight: 10,
-                            usePointStyle: true
-                        }
+                        display: false
                     },
                     tooltip: {
                         callbacks: {
@@ -541,10 +649,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                     y: {
                         ticks: {
                             color: '#94a3b8',
-                            callback: value => formatCurrency(value)
+                            callback: value => formatCompactCurrency(value),
+                            maxTicksLimit: 5
                         },
                         grid: {
-                            color: 'rgba(148,163,184,0.15)'
+                            color: 'rgba(148,163,184,0.12)',
+                            borderDash: [4, 4]
                         }
                     }
                 }
@@ -597,38 +707,41 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const assetName = state.assets.find(a => a.id === t.assetId)?.name || 'Unknown';
 
                                     const li = document.createElement('div');
-            const typeLabel = isIncome ? 'Income' : 'Expense';
-            const badgeClass = isIncome ? 'bg-sky-500/10 text-sky-400' : 'bg-rose-500/10 text-rose-400';
             li.className = 'transaction-item group rounded-xl border border-border/60 bg-card/60 p-4 transition-all duration-200 hover:border-accent/40 hover:bg-card/80';
             li.innerHTML = `
                 <div class="flex flex-col gap-3">
-                    <div class="flex items-start justify-between gap-4 flex-wrap">
-                        <div class="flex items-center gap-4 min-w-[220px]">
-                            <div class="h-11 w-11 rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
-                                ${isIncome ? 
-                                    `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
-                                    `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
-                                }
-                            </div>
-                            <div>
-                                <p class="text-sm text-muted-foreground">${t.category} &bull; ${assetName} &bull; ${formatDateForDisplay(t.date)}</p>
-                                <p class="text-base font-semibold text-foreground">${t.description}</p>
-                            </div>
+                    <div class="flex items-start gap-4">
+                        <div class="h-11 w-11 rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
+                            ${isIncome ? 
+                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
+                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
+                            }
                         </div>
-                        <div class="flex items-center gap-2 flex-wrap justify-end">
-                            <span class="text-[11px] font-semibold uppercase tracking-[0.2em] px-2 py-1 rounded-full border border-border/60 ${badgeClass}">${typeLabel}</span>
-                            <p class="font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
-                            ${t.note ? `
-                                <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                                </button>
-                            ` : '<div class="w-7"></div>'}
-                            <button data-id="${t.id}" class="edit-btn p-1 text-muted-foreground hover:text-accent">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /></svg>
-                            </button>
-                            <button data-id="${t.id}" class="delete-btn p-1 text-muted-foreground hover:text-rose-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
-                            </button>
+                        <div class="flex-1">
+                            <div class="flex flex-col gap-2 md:grid md:grid-cols-12 md:items-center md:gap-3">
+                                <div class="md:col-span-5">
+                                    <p class="text-sm text-muted-foreground">${t.category} &bull; ${assetName}</p>
+                                    <p class="text-base font-semibold text-foreground">${t.description}</p>
+                                </div>
+                                <div class="md:col-span-3 text-xs text-muted-foreground md:text-center">${formatDateForDisplay(t.date)}</div>
+                                <div class="md:col-span-4 flex items-center justify-between md:justify-end gap-2">
+                                    <p class="font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
+                                    ${t.note ? `
+                                        <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                                        </button>
+                                    ` : '<div class="w-7"></div>'}
+                                    <div class="relative transaction-actions">
+                                        <button class="more-btn p-1 text-muted-foreground hover:text-foreground" aria-label="More actions">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
+                                        </button>
+                                        <div class="transaction-actions-menu hidden absolute right-0 mt-2 w-28 rounded-md border border-border bg-card shadow-lg z-20">
+                                            <button data-id="${t.id}" class="edit-btn w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40">Edit</button>
+                                            <button data-id="${t.id}" class="delete-btn w-full text-left px-3 py-2 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -705,6 +818,20 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         pageEl.classList.add('page-enter');
     };
 
+    const applyCardStagger = (pageEl) => {
+        if (!pageEl) return;
+        const cards = Array.from(pageEl.querySelectorAll('.card'));
+        const ordered = cards.slice().sort((a, b) => {
+            const topDiff = a.offsetTop - b.offsetTop;
+            if (Math.abs(topDiff) > 8) return topDiff;
+            return a.offsetLeft - b.offsetLeft;
+        });
+        ordered.forEach((card, index) => {
+            card.classList.add('card-stagger');
+            card.style.setProperty('--card-delay', `${index * 50}ms`);
+        });
+    };
+
     const renderPage = () => {
         pageTracker.classList.add('hidden');
         pageAssets.classList.add('hidden');
@@ -714,9 +841,14 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
         if (state.ui.currentPage === 'tracker') {
             pageTracker.classList.remove('hidden');
+            applyCardStagger(pageTracker);
             animatePage(pageTracker);
+            setTimeout(() => {
+                renderSummary();
+            }, 0);
         } else if (state.ui.currentPage === 'assets') {
             pageAssets.classList.remove('hidden');
+            applyCardStagger(pageAssets);
             animatePage(pageAssets);
              setTimeout(() => {
                 const assetChartCanvas = document.getElementById('asset-chart');
@@ -731,10 +863,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }, 0);
         } else if (state.ui.currentPage === 'all-transactions') {
             pageAllTransactions.classList.remove('hidden');
+            applyCardStagger(pageAllTransactions);
             animatePage(pageAllTransactions);
             renderAllTransactionsPage();
         } else if (state.ui.currentPage === 'analytics') {
             pageAnalytics.classList.remove('hidden');
+            applyCardStagger(pageAnalytics);
             animatePage(pageAnalytics);
             
             setTimeout(() => {
@@ -742,6 +876,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }, 0);
         } else if (state.ui.currentPage === 'settings') {
             pageSettings.classList.remove('hidden');
+            applyCardStagger(pageSettings);
             animatePage(pageSettings);
             renderSettings();
         }
@@ -1029,6 +1164,19 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // Combined event listener for all transaction lists
     [transactionListContainer, fullTransactionListContainer].forEach(container => {
         container.addEventListener('click', (e) => {
+            const moreBtn = e.target.closest('.more-btn');
+            if (moreBtn) {
+                const wrapper = moreBtn.closest('.transaction-actions');
+                const menu = wrapper?.querySelector('.transaction-actions-menu');
+                if (menu) {
+                    document.querySelectorAll('.transaction-actions-menu').forEach(el => {
+                        if (el !== menu) el.classList.add('hidden');
+                    });
+                    menu.classList.toggle('hidden');
+                }
+                return;
+            }
+
             const editBtn = e.target.closest('.edit-btn');
             if (editBtn) {
                 startEditing(editBtn.dataset.id);
@@ -1063,6 +1211,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 }
             }
         });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.transaction-actions')) {
+            document.querySelectorAll('.transaction-actions-menu').forEach(el => el.classList.add('hidden'));
+        }
     });
 
     cancelEditBtn.addEventListener('click', resetForm);
