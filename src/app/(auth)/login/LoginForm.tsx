@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 export default function LoginForm() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -59,6 +60,43 @@ export default function LoginForm() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setMessage(null);
+
+    if (!supabaseReady) {
+      setError("Missing Supabase environment variables.");
+      return;
+    }
+
+    setIsGoogleLoading(true);
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const redirectTo = `${window.location.origin}/auth/callback?next=/dashboard`;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (oauthError) {
+        setError(oauthError.message);
+        setIsGoogleLoading(false);
+        return;
+      }
+
+      setMessage("Redirecting to Google...");
+    } catch (err) {
+      setError("Unable to start Google sign-in. Please try again.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const isAnyLoading = isLoading || isGoogleLoading;
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
       <div className="space-y-2">
@@ -73,7 +111,47 @@ export default function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+      <div className="mt-8 space-y-4">
+        <button
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={isAnyLoading || !supabaseReady}
+        >
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              d="M23.49 12.27c0-.82-.07-1.6-.2-2.36H12v4.47h6.46a5.53 5.53 0 0 1-2.4 3.63v3.02h3.88c2.27-2.1 3.55-5.2 3.55-8.76Z"
+              fill="#4285F4"
+            />
+            <path
+              d="M12 24c3.24 0 5.95-1.07 7.94-2.9l-3.88-3.02c-1.08.72-2.46 1.15-4.06 1.15-3.13 0-5.78-2.12-6.73-4.98H1.26v3.12A12 12 0 0 0 12 24Z"
+              fill="#34A853"
+            />
+            <path
+              d="M5.27 14.25A7.2 7.2 0 0 1 4.9 12c0-.78.13-1.54.37-2.25V6.63H1.26A12 12 0 0 0 0 12c0 1.94.46 3.78 1.26 5.37l4.01-3.12Z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M12 4.77c1.76 0 3.34.6 4.58 1.78l3.44-3.44C17.94 1.19 15.23 0 12 0 7.27 0 3.17 2.71 1.26 6.63l4.01 3.12C6.22 6.88 8.87 4.77 12 4.77Z"
+              fill="#EA4335"
+            />
+          </svg>
+          <span>
+            {isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}
+          </span>
+        </button>
+        <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span>or</span>
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-700" htmlFor="email">
             Email
@@ -121,7 +199,7 @@ export default function LoginForm() {
         <button
           className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
           type="submit"
-          disabled={isLoading || !supabaseReady}
+          disabled={isAnyLoading || !supabaseReady}
         >
           {isLoading ? "Signing in..." : "Sign in"}
         </button>
