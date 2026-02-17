@@ -174,8 +174,7 @@ export default function DashboardClient({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial = stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
+    const initial = stored === "light" || stored === "dark" ? stored : "dark";
     setTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
