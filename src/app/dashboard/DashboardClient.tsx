@@ -3,6 +3,7 @@
 import Script from "next/script";
 import Image from "next/image";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import ExpenseByCategoryGauge from "./analytics/ExpenseByCategoryGauge";
 
 type DashboardClientProps = {
   fontClassName?: string;
@@ -123,6 +125,7 @@ export default function DashboardClient({
   const [activePage, setActivePage] = useState<DashboardPage>(
     initialPage ?? "tracker"
   );
+  const [expenseSlot, setExpenseSlot] = useState<HTMLElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [searchFocused, setSearchFocused] = useState(false);
@@ -178,6 +181,12 @@ export default function DashboardClient({
     setTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const node = document.getElementById("expense-by-category-slot");
+    setExpenseSlot(node);
+  }, [chartsReady]);
 
   const handleNavigate = (page: DashboardPage) => {
     if (typeof window === "undefined") return;
@@ -620,6 +629,7 @@ export default function DashboardClient({
             <div className="content-animate">
               <div dangerouslySetInnerHTML={markup} />
             </div>
+            {expenseSlot && createPortal(<ExpenseByCategoryGauge />, expenseSlot)}
           </main>
         </div>
       </div>
