@@ -1,148 +1,318 @@
+﻿import Image from "next/image";
 import Link from "next/link";
+import { ParticleTextEffect } from "@/components/landing/particle-text-effect";
+import { Reveal } from "@/components/landing/reveal";
+import { BackgroundPaths } from "@/components/landing/background-paths";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function Home() {
+const particleWords = ["B-7", "B-Track7", "Budget", "Tracking"];
+
+const features = [
+  {
+    title: "Instant capture",
+    description: "Log income and expenses in seconds with smart categories that stay organized.",
+  },
+  {
+    title: "Live budget guardrails",
+    description: "Watch categories fill in real time and get nudges before you overspend.",
+  },
+  {
+    title: "Cashflow timeline",
+    description: "See upcoming bills and paychecks in one rolling view to avoid surprises.",
+  },
+  {
+    title: "Assets + net worth",
+    description: "Track cash, investments, and debt together to see the full picture.",
+  },
+  {
+    title: "Goal buckets",
+    description: "Create savings goals, fund them automatically, and celebrate milestones.",
+  },
+  {
+    title: "Weekly insights",
+    description: "Get clear summaries of what changed, what is trending, and what to fix next.",
+  },
+];
+
+const pricingTiers = [
+  {
+    name: "Free",
+    price: "$0",
+    description: "Everything you need to start tracking today.",
+    features: ["Unlimited categories", "Monthly summaries", "Single workspace"],
+  },
+];
+
+const faqs = [
+  {
+    question: "When will B-Track7 be available?",
+    answer: "We are finishing the core experience now. Join the early list to get access as soon as it drops.",
+  },
+  {
+    question: "Will I be able to move my data in and out?",
+    answer: "Yes. We are building simple imports and exports so you stay in control of your money data.",
+  },
+  {
+    question: "Does B-Track7 support multiple accounts?",
+    answer: "Multi-account views are part of Track7 Plus. You can still start with one workspace for free.",
+  },
+  {
+    question: "Can I invite a partner or teammates?",
+    answer: "Shared budgets and permissions are planned for the Team tier.",
+  },
+  {
+    question: "Is my data private?",
+    answer: "Privacy is core to the product. We will publish full security details before launch.",
+  },
+];
+
+export default async function Home() {
+  const supabase = await createSupabaseServerClient({ allowSetCookies: false });
+  const { data } = await supabase.auth.getUser();
+  const isSignedIn = Boolean(data?.user);
+  const primaryHref = isSignedIn ? "/dashboard" : "/signup";
+  const primaryLabel = isSignedIn ? "Go to dashboard" : "Get started";
+  const heroPrimaryLabel = isSignedIn ? "Open dashboard" : "Start tracking";
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-semibold text-slate-900">
-            Budget Tracker
+    <div className="min-h-screen bg-black text-white">
+      <header className="fixed left-1/2 top-6 z-50 w-[min(94%,980px)] -translate-x-1/2">
+        <div className="grid items-center gap-4 rounded-full border border-white/10 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur-xl md:grid-cols-[1fr_auto_1fr]">
+          <Link href="/" className="flex items-center gap-3 text-base font-semibold tracking-tight">
+            <Image
+              src="/logo.svg"
+              alt="B-Track7 logo"
+              width={30}
+              height={30}
+              className="h-7 w-7"
+              priority
+            />
+            <span>B-Track7</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              Get started
-            </Link>
+
+          <nav className="hidden items-center justify-center gap-6 text-sm text-white/70 md:flex">
+            <a className="transition hover:text-white" href="#features">
+              Features
+            </a>
+            <a className="transition hover:text-white" href="#pricing">
+              Pricing
+            </a>
+            <a className="transition hover:text-white" href="#faq">
+              FAQ
+            </a>
+          </nav>
+
+          <div className="flex items-center justify-end gap-3 text-sm font-semibold">
+            {isSignedIn ? (
+              <Link
+                href="/dashboard"
+                className="rounded-full bg-white px-4 py-2 text-black transition hover:bg-white/90"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-full border border-white/15 px-4 py-2 text-white/80 transition hover:border-white/30 hover:text-white"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href={primaryHref}
+                  className="rounded-full bg-white px-4 py-2 text-black transition hover:bg-white/90"
+                >
+                  Get started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
 
-      <main>
-        <section className="mx-auto grid max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-          <div className="space-y-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-500">
-              Personal finance, simplified
-            </p>
-            <h1 className="text-4xl font-semibold leading-tight text-slate-900 sm:text-5xl">
-              Track every rupee with a dashboard you will actually use.
-            </h1>
-            <p className="text-lg text-slate-600">
-              Budget Tracker keeps income, expenses, assets, and trends in one
-              clear view. Add entries fast, spot patterns faster.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/signup"
-                className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
-              >
-                Start tracking
-              </Link>
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
-              >
-                I already have an account
-              </Link>
-            </div>
+      <main className="pt-24">
+        <section className="relative overflow-hidden bg-black">
+          <div className="absolute inset-0">
+            <ParticleTextEffect words={particleWords} className="opacity-85" textYRatio={0.42} />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/35 to-black/95" />
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-600">
-                This month
+          <div className="relative z-10 mx-auto flex min-h-[calc(100vh-10rem)] max-w-6xl flex-col px-6 pb-12 pt-6">
+            <div className="mt-auto mb-0 text-center">
+              <p className="text-xs uppercase tracking-[0.4em] text-white/50">
+                Budgeting that feels alive
               </p>
-              <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-600">
-                +12%
-              </span>
-            </div>
-            <div className="mt-6 space-y-4">
-              {[
-                { label: "Income", value: "₹84,200", tone: "text-green-600" },
-                { label: "Expenses", value: "₹52,150", tone: "text-red-600" },
-                { label: "Savings", value: "₹32,050", tone: "text-indigo-600" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
+              <h1 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl font-display">
+                Financial Control, Redefined
+              </h1>
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link
+                  href={primaryHref}
+                  className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
                 >
-                  <span className="text-sm text-slate-600">{item.label}</span>
-                  <span className={`text-sm font-semibold ${item.tone}`}>
-                    {item.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 rounded-2xl bg-slate-900 px-4 py-4 text-sm text-white">
-              <p className="font-semibold">Net worth</p>
-              <p className="mt-1 text-2xl font-semibold">₹418,900</p>
-              <p className="mt-2 text-xs text-slate-300">
-                Across cash, bank, and investments.
-              </p>
+                  {heroPrimaryLabel}
+                </Link>
+                {!isSignedIn && (
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:text-white"
+                  >
+                    I already have an account
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </section>
-
-        <section className="mx-auto max-w-6xl px-6 pb-16">
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                title: "Daily clarity",
-                description:
-                  "Log transactions quickly and keep categories organized.",
-              },
-              {
-                title: "Asset visibility",
-                description:
-                  "Track balances and transfers without spreadsheet chaos.",
-              },
-              {
-                title: "Insightful trends",
-                description:
-                  "Visualize spending patterns and adjust budgets with ease.",
-              },
-            ].map((feature) => (
-              <div
-                key={feature.title}
-                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
-              >
-                <h3 className="text-lg font-semibold text-slate-900">
-                  {feature.title}
-                </h3>
-                <p className="mt-3 text-sm text-slate-600">
-                  {feature.description}
+        <section id="features" className="relative border-t border-white/10 bg-black py-24 scroll-mt-28">
+          <Reveal>
+            <div className="relative z-10 mx-auto max-w-6xl px-6">
+              <div className="mx-auto mb-14 max-w-3xl text-center">
+                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Features</p>
+                <h2 className="mt-4 text-3xl font-semibold sm:text-4xl font-display">
+                  Everything you need to run your money like a system.
+                </h2>
+                <p className="mt-4 text-white/70">
+                  Built for daily clarity, B-Track7 keeps budgets, assets, and goals in a single flow.
                 </p>
               </div>
-            ))}
-          </div>
-        </section>
 
-        <section className="border-t border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-6 py-12 md:flex-row md:items-center">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-900">
-                Ready to put your finances on autopilot?
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Create an account in under a minute.
-              </p>
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {features.map((feature) => (
+                  <div
+                    key={feature.title}
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur"
+                  >
+                    <div className="absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_60%)]" />
+                    </div>
+                    <div className="relative">
+                      <h3 className="text-xl font-semibold">{feature.title}</h3>
+                      <p className="mt-3 text-sm text-white/70">{feature.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+          </Reveal>
+        </section>
+        <section id="pricing" className="relative border-t border-white/10 bg-black py-24 scroll-mt-28">
+          <Reveal>
+            <div className="relative z-10 mx-auto max-w-6xl px-6">
+              <div className="mx-auto mb-14 max-w-3xl text-center">
+                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Pricing</p>
+                <h2 className="mt-4 text-3xl font-semibold sm:text-4xl font-display">
+                  Free while we build the full suite.
+                </h2>
+                <p className="mt-4 text-white/70">
+                  No paywall today. Billing will arrive after launch.
+                </p>
+              </div>
+
+              <div className="grid place-items-center gap-6">
+                {pricingTiers.map((tier) => (
+                  <div
+                    key={tier.name}
+                    className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur"
+                  >
+                    <h3 className="text-xl font-semibold">{tier.name}</h3>
+                    <p className="mt-2 text-sm text-white/70">{tier.description}</p>
+                    <div className="mt-6 flex items-end gap-2">
+                      <span className="text-4xl font-semibold">{tier.price}</span>
+                      <span className="text-sm text-white/50">per month</span>
+                    </div>
+                    <ul className="mt-6 space-y-3 text-sm text-white/70">
+                      {tier.features.map((item) => (
+                        <li key={item} className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={primaryHref}
+                      className="mt-8 inline-flex w-full items-center justify-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-white/40 hover:text-white"
+                    >
+                      {primaryLabel}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </section>
+        <section id="faq" className="relative border-t border-white/10 bg-black py-24 scroll-mt-28">
+          <Reveal>
+            <div className="relative z-10 mx-auto max-w-4xl px-6">
+              <div className="mb-12 text-center">
+                <p className="text-xs uppercase tracking-[0.4em] text-white/50">FAQ</p>
+                <h2 className="mt-4 text-3xl font-semibold sm:text-4xl font-display">
+                  Questions, answered before you ask.
+                </h2>
+                <p className="mt-4 text-white/70">
+                  Need something else? Reach out and we will get back quickly.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {faqs.map((faq) => (
+                  <details
+                    key={faq.question}
+                    className="group rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white/70"
+                  >
+                    <summary className="cursor-pointer list-none text-base font-semibold text-white">
+                      {faq.question}
+                    </summary>
+                    <p className="mt-3 text-white/70">{faq.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </section>
+        <section className="relative overflow-hidden border-t border-white/10 bg-black py-24">
+          <div className="absolute inset-0">
+            <div className="h-full w-full bg-gradient-to-br from-neutral-950 via-black to-neutral-900">
+              <BackgroundPaths />
+              <div className="absolute inset-0 opacity-25">
+                <div className="absolute top-0 left-1/4 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl" />
+                <div
+                  className="absolute bottom-0 right-1/4 h-72 w-72 rounded-full bg-sky-400/10 blur-3xl"
+                  style={{ animationDelay: "1s" }}
+                />
+                <div
+                  className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400/10 blur-3xl"
+                  style={{ animationDelay: "2s" }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/35 to-black/85" />
+          <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-6 text-center">
+            <h2 className="text-3xl font-semibold sm:text-4xl font-display">
+              Ready to take your financials in your own hands?
+            </h2>
+            <p className="mt-4 text-white/70">
+              Start with a clean budget and let B-Track7 guide the next move.
+            </p>
             <Link
-              href="/signup"
-              className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              href={primaryHref}
+              className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
             >
-              Create free account
+              {primaryLabel}
             </Link>
           </div>
         </section>
       </main>
+
+      <footer className="border-t border-white/10 bg-black">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-white/50 sm:flex-row">
+          <div className="flex items-center gap-3 text-white/80">
+            <Image src="/logo.svg" alt="B-Track7 logo" width={26} height={26} className="h-6 w-6" />
+            <span>B-Track7</span>
+          </div>
+          <span>Copyright 2026 B-Track7. All rights reserved.</span>
+        </div>
+      </footer>
     </div>
   );
 }
