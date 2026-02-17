@@ -22,6 +22,28 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "B-Track7",
   description: "Budget tracking that feels alive with real-time guardrails and cashflow clarity.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  openGraph: {
+    title: "B-Track7",
+    description: "Budget tracking that feels alive with real-time guardrails and cashflow clarity.",
+    url: "/",
+    siteName: "B-Track7",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "B-Track7",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "B-Track7",
+    description: "Budget tracking that feels alive with real-time guardrails and cashflow clarity.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
