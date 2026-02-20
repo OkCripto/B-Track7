@@ -98,7 +98,10 @@ export default async function ChangelogPage() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
       <ChangelogScrollParticleField />
-      <div aria-hidden className="absolute inset-0 z-[2] bg-gradient-to-b from-black/40 via-black/26 to-black/48" />
+      <div
+        aria-hidden
+        className="absolute inset-0 z-[2] bg-gradient-to-b from-black/36 via-black/26 to-black/40"
+      />
       <header className="fixed left-1/2 top-6 z-50 w-[min(94%,980px)] -translate-x-1/2">
         <div className="grid items-center gap-4 rounded-full border border-white/10 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur-xl md:grid-cols-[1fr_auto_1fr]">
           <Link href="/" className="flex items-center gap-3 text-base font-semibold tracking-tight">
