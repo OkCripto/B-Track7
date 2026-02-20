@@ -145,26 +145,31 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                                 <select id="transaction-asset" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
                                     <!-- Assets populated by JS -->
                                 </select>
+                                <p id="transaction-asset-error" class="field-error hidden"></p>
                             </div>
                             <div>
                                 <label for="transaction-date" class="block text-sm font-medium text-muted-foreground">Date</label>
                                 <input type="date" id="transaction-date" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
+                                <p id="transaction-date-error" class="field-error hidden"></p>
                             </div>
                             <div>
                                 <label for="transaction-category" class="block text-sm font-medium text-muted-foreground">Category</label>
                                 <select id="transaction-category" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
                                     <!-- Categories populated by JS -->
                                 </select>
+                                <p id="transaction-category-error" class="field-error hidden"></p>
                             </div>
                             <div>
                                 <label for="transaction-amount" class="block text-sm font-medium text-muted-foreground">Amount</label>
                                 <div class="mt-1 relative rounded-md shadow-sm">
                                     <input type="number" id="transaction-amount" class="block w-full rounded-md border-border pl-3 pr-2 sm:text-sm" placeholder="0.00" step="0.01">
                                 </div>
+                                <p id="transaction-amount-error" class="field-error hidden"></p>
                             </div>
                             <div>
                                 <label for="transaction-description" class="block text-sm font-medium text-muted-foreground">Description</label>
                                 <input type="text" id="transaction-description" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm" placeholder="e.g., Groceries">
+                                <p id="transaction-description-error" class="field-error hidden"></p>
                             </div>
                             <div>
                                 <label for="transaction-note" class="block text-sm font-medium text-muted-foreground">Note (Optional)</label>

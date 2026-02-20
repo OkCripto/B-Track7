@@ -15,6 +15,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // -------------------------------------------------------------------------
     
     const PREDEFINED_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#0ea5e9', '#38bdf8', '#22d3ee', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e'];
+    const REQUIRED_ASSETS = [
+        { name: 'Cash', normalized: 'cash' },
+        { name: 'Bank', normalized: 'bank' }
+    ];
+    const PROTECTED_ASSET_NAMES = new Set(REQUIRED_ASSETS.map(asset => asset.normalized));
+    const normalizeAssetName = (value) => String(value || '').trim().toLowerCase();
+    const isProtectedAssetName = (value) => PROTECTED_ASSET_NAMES.has(normalizeAssetName(value));
     const getRandomColor = () => PREDEFINED_COLORS[Math.floor(Math.random() * PREDEFINED_COLORS.length)];
     const createDefaultState = () => ({
         assets: [],
@@ -109,6 +116,55 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         state.expenseCategories = expense;
     };
 
+    const ensureRequiredAssets = async (assets) => {
+        const existingByNormalized = new Set((assets || []).map(asset => normalizeAssetName(asset.name)));
+        const missingAssets = REQUIRED_ASSETS.filter(asset => !existingByNormalized.has(asset.normalized));
+        const needsDefaultFlagSync = (assets || []).some(
+            asset => isProtectedAssetName(asset.name) && asset.is_default !== true
+        );
+
+        if (missingAssets.length > 0) {
+            const { error: missingAssetsError } = await supabase.from('assets').upsert(
+                missingAssets.map(asset => ({
+                    user_id: currentUserId,
+                    name: asset.name,
+                    balance: 0,
+                    is_default: true
+                })),
+                { onConflict: 'user_id,name_normalized' }
+            );
+            if (missingAssetsError) {
+                console.error('Failed to create required assets', missingAssetsError);
+            }
+        }
+
+        if (needsDefaultFlagSync) {
+            const { error: syncDefaultError } = await supabase
+                .from('assets')
+                .update({ is_default: true })
+                .eq('user_id', currentUserId)
+                .in('name_normalized', Array.from(PROTECTED_ASSET_NAMES));
+            if (syncDefaultError) {
+                console.error('Failed to sync default assets', syncDefaultError);
+            }
+        }
+
+        if (missingAssets.length === 0 && !needsDefaultFlagSync) {
+            return assets;
+        }
+
+        const { data: syncedAssets, error: syncedAssetsError } = await supabase
+            .from('assets')
+            .select('*')
+            .order('created_at', { ascending: true });
+        if (syncedAssetsError) {
+            console.error('Failed to reload assets after sync', syncedAssetsError);
+            return assets;
+        }
+
+        return syncedAssets || assets;
+    };
+
     const loadState = async () => {
         const user = await requireUser();
         if (!user) return;
@@ -132,7 +188,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return;
         }
 
-        state.assets = (assetsRes.data || []).map(asset => ({
+        const syncedAssets = await ensureRequiredAssets(assetsRes.data || []);
+        state.assets = (syncedAssets || []).map(asset => ({
             ...asset,
             balance: Number(asset.balance)
         }));
@@ -248,6 +305,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const formAmountInput = document.getElementById('transaction-amount');
     const formDescriptionInput = document.getElementById('transaction-description');
     const formNoteTextarea = document.getElementById('transaction-note');
+    const formAssetError = document.getElementById('transaction-asset-error');
+    const formDateError = document.getElementById('transaction-date-error');
+    const formCategoryError = document.getElementById('transaction-category-error');
+    const formAmountError = document.getElementById('transaction-amount-error');
+    const formDescriptionError = document.getElementById('transaction-description-error');
     const typeBtnIncome = document.getElementById('type-btn-income');
     const typeBtnExpense = document.getElementById('type-btn-expense');
     const cancelEditBtn = document.getElementById('cancel-edit-btn');
@@ -296,6 +358,25 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const analyticsAverageExpenseEl = document.getElementById('analytics-average-expense');
     const analyticsSavingsRateEl = document.getElementById('analytics-savings-rate');
     const chartTooltip = document.getElementById('chart-tooltip');
+
+    const attachDatePickerOpenOnFieldClick = (inputEl) => {
+        if (!inputEl) return;
+        const canShowPicker = typeof inputEl.showPicker === 'function';
+        if (!canShowPicker) return;
+
+        inputEl.addEventListener('pointerdown', (event) => {
+            if (typeof event.button === 'number' && event.button !== 0) return;
+            event.preventDefault();
+            inputEl.focus({ preventScroll: true });
+            try {
+                inputEl.showPicker();
+            } catch (error) {
+                // Ignore browser-level picker errors (not supported state, etc.).
+            }
+        });
+    };
+
+    [formDateInput, filterDateStartInput, filterDateEndInput].forEach(attachDatePickerOpenOnFieldClick);
 
     // -------------------------------------------------------------------------
     // UTILITY FUNCTIONS
@@ -354,6 +435,20 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         openModal(modalHTML);
     };
 
+    const showProtectedAssetModal = () => {
+        const modalHTML = `
+            <div class="text-center">
+                <h3 class="mt-2 text-lg font-semibold text-foreground">Permanent Assets</h3>
+                <p class="mt-2 text-sm text-muted-foreground">
+                    Bank and Cash are permanent assets for every account and cannot be renamed or deleted.
+                </p>
+                <div class="mt-5 sm:mt-6">
+                    <button class="close-modal-btn btn-primary w-full rounded-md px-3 py-2 text-sm font-semibold shadow-sm">OK</button>
+                </div>
+            </div>`;
+        openModal(modalHTML);
+    };
+
     const getTransactionEffect = (type, amount) => (type === 'income' ? amount : -amount);
 
 
@@ -382,14 +477,24 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 setIconState('neutral');
                 return;
             }
-            el.textContent = '+100.0%';
-            el.className = 'font-semibold text-emerald-400';
-            setIconState('up');
+            const direction = current > 0 ? 'up' : 'down';
+            const signed = current > 0 ? '+' : '-';
+            el.textContent = `${signed}100.0%`;
+            el.className = `font-semibold ${current > 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            setIconState(direction);
             return;
         }
 
-        const change = ((current - previous) / Math.abs(previous)) * 100;
-        const isUp = change >= 0;
+        const change = ((current - previous) / previous) * 100;
+        const isNeutral = Math.abs(change) < 0.05;
+        if (isNeutral) {
+            el.textContent = '0.0%';
+            el.className = 'font-semibold text-muted-foreground';
+            setIconState('neutral');
+            return;
+        }
+
+        const isUp = change > 0;
         el.textContent = `${isUp ? '+' : ''}${change.toFixed(1)}%`;
         el.className = `font-semibold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`;
         setIconState(isUp ? 'up' : 'down');
@@ -862,8 +967,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             option.textContent = asset.name;
             formAssetSelect.appendChild(option);
         });
-        if(state.assets.find(a => a.id === currentAsset)) {
+        const bankAsset = state.assets.find(asset => normalizeAssetName(asset.name) === 'bank');
+        if (state.assets.find(a => a.id === currentAsset)) {
             formAssetSelect.value = currentAsset;
+        } else if (bankAsset) {
+            formAssetSelect.value = bankAsset.id;
+        } else if (state.assets.length > 0) {
+            formAssetSelect.value = state.assets[0].id;
         }
     };
 
@@ -889,6 +999,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     };
 
     const renderPage = () => {
+        const pageChanged = lastRenderedPage !== state.ui.currentPage;
         pageTracker.classList.add('hidden');
         pageAssets.classList.add('hidden');
         pageAllTransactions.classList.add('hidden');
@@ -897,15 +1008,19 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
         if (state.ui.currentPage === 'tracker') {
             pageTracker.classList.remove('hidden');
-            applyCardStagger(pageTracker);
-            animatePage(pageTracker);
+            if (pageChanged) {
+                applyCardStagger(pageTracker);
+                animatePage(pageTracker);
+            }
             setTimeout(() => {
                 renderSummary();
             }, 0);
         } else if (state.ui.currentPage === 'assets') {
             pageAssets.classList.remove('hidden');
-            applyCardStagger(pageAssets);
-            animatePage(pageAssets);
+            if (pageChanged) {
+                applyCardStagger(pageAssets);
+                animatePage(pageAssets);
+            }
              setTimeout(() => {
                 const assetChartCanvas = document.getElementById('asset-chart');
                 if (assetChartCanvas) {
@@ -919,25 +1034,31 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }, 0);
         } else if (state.ui.currentPage === 'all-transactions') {
             pageAllTransactions.classList.remove('hidden');
-            applyCardStagger(pageAllTransactions);
-            animatePage(pageAllTransactions);
+            if (pageChanged) {
+                applyCardStagger(pageAllTransactions);
+                animatePage(pageAllTransactions);
+            }
             renderAllTransactionsPage();
         } else if (state.ui.currentPage === 'analytics') {
             pageAnalytics.classList.remove('hidden');
-            applyCardStagger(pageAnalytics);
-            animatePage(pageAnalytics);
+            if (pageChanged) {
+                applyCardStagger(pageAnalytics);
+                animatePage(pageAnalytics);
+            }
             
             setTimeout(() => {
                 renderAnalytics(); 
             }, 0);
         } else if (state.ui.currentPage === 'settings') {
             pageSettings.classList.remove('hidden');
-            applyCardStagger(pageSettings);
-            animatePage(pageSettings);
+            if (pageChanged) {
+                applyCardStagger(pageSettings);
+                animatePage(pageSettings);
+            }
             renderSettings();
         }
 
-        if (lastRenderedPage !== state.ui.currentPage) {
+        if (pageChanged) {
             lastRenderedPage = state.ui.currentPage;
             window.dispatchEvent(new CustomEvent('budget:page-change', {
                 detail: { page: state.ui.currentPage }
@@ -1120,14 +1241,89 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         renderForm(!typeChanged);
     };
 
+    const setTransactionFieldError = (inputEl, errorEl, message = '') => {
+        if (!inputEl || !errorEl) return;
+        const hasError = Boolean(message);
+        inputEl.classList.toggle('input-invalid', hasError);
+        errorEl.textContent = message;
+        errorEl.classList.toggle('hidden', !hasError);
+    };
+
+    const clearTransactionFieldErrors = () => {
+        setTransactionFieldError(formAssetSelect, formAssetError, '');
+        setTransactionFieldError(formDateInput, formDateError, '');
+        setTransactionFieldError(formCategorySelect, formCategoryError, '');
+        setTransactionFieldError(formAmountInput, formAmountError, '');
+        setTransactionFieldError(formDescriptionInput, formDescriptionError, '');
+    };
+
+    const registerFieldErrorClear = (inputEl, errorEl) => {
+        if (!inputEl || !errorEl) return;
+        const clear = () => setTransactionFieldError(inputEl, errorEl, '');
+        inputEl.addEventListener('input', clear);
+        inputEl.addEventListener('change', clear);
+    };
+
+    [
+        [formAssetSelect, formAssetError],
+        [formDateInput, formDateError],
+        [formCategorySelect, formCategoryError],
+        [formAmountInput, formAmountError],
+        [formDescriptionInput, formDescriptionError]
+    ].forEach(([inputEl, errorEl]) => registerFieldErrorClear(inputEl, errorEl));
+
+    const getValidatedTransactionFormData = () => {
+        const amount = parseFloat(formAmountInput.value);
+        const transactionData = {
+            date: formDateInput.value,
+            category: formCategorySelect.value,
+            description: formDescriptionInput.value.trim(),
+            note: formNoteTextarea.value.trim(),
+            amount,
+            type: formTypeInput.value,
+            assetId: formAssetSelect.value,
+        };
+
+        clearTransactionFieldErrors();
+        let hasErrors = false;
+
+        if (!transactionData.assetId) {
+            setTransactionFieldError(formAssetSelect, formAssetError, 'Select an account / asset.');
+            hasErrors = true;
+        }
+        if (!transactionData.date) {
+            setTransactionFieldError(formDateInput, formDateError, 'Select a date.');
+            hasErrors = true;
+        }
+        if (!transactionData.category) {
+            setTransactionFieldError(formCategorySelect, formCategoryError, 'Select a category.');
+            hasErrors = true;
+        }
+        if (!Number.isFinite(amount) || amount <= 0) {
+            setTransactionFieldError(formAmountInput, formAmountError, 'Enter an amount greater than 0.');
+            hasErrors = true;
+        }
+        if (!transactionData.description) {
+            setTransactionFieldError(formDescriptionInput, formDescriptionError, 'Description is required.');
+            hasErrors = true;
+        }
+
+        return {
+            isValid: !hasErrors,
+            transactionData
+        };
+    };
+
     const resetForm = () => {
         state.ui.formMode = 'add';
         state.ui.editingId = null;
         form.reset();
         formIdInput.value = '';
         formDateInput.value = formatDateForInput(new Date());
+        formAssetSelect.value = '';
         cancelEditBtn.classList.add('hidden');
         form.querySelector('button[type="submit"]').textContent = 'Save Transaction';
+        clearTransactionFieldErrors();
         handleTypeChange('expense');
     };
 
@@ -1150,6 +1346,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         formAmountInput.value = transaction.amount;
         formDescriptionInput.value = transaction.description;
         formNoteTextarea.value = transaction.note || '';
+        clearTransactionFieldErrors();
 
         cancelEditBtn.classList.remove('hidden');
         form.querySelector('button[type="submit"]').textContent = 'Update Transaction';
@@ -1175,24 +1372,16 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const { isValid, transactionData } = getValidatedTransactionFormData();
+        if (!isValid) return;
+
         const user = await requireUser();
         if (!user) return;
 
         const id = formIdInput.value;
-        const amount = parseFloat(formAmountInput.value);
-        const type = formTypeInput.value;
-        const assetId = formAssetSelect.value;
-        
-        const transactionData = {
-            date: formDateInput.value,
-            category: formCategorySelect.value,
-            description: formDescriptionInput.value.trim(),
-            note: formNoteTextarea.value.trim(),
-            amount,
-            type,
-            assetId,
-        };
-        if (!transactionData.date || !transactionData.amount || !transactionData.description || !assetId || !transactionData.category) { return; }
+        const amount = transactionData.amount;
+        const type = transactionData.type;
+        const assetId = transactionData.assetId;
 
         const selectedAsset = state.assets.find(a => a.id === assetId);
         const newEffect = getTransactionEffect(type, amount);
@@ -1359,6 +1548,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const setPage = (page, options = {}) => {
         if (!pageRoutes[page]) return;
         const { updateHistory = true } = options;
+        if (page === state.ui.currentPage && window.location.pathname === pageRoutes[page]) return;
 
         if (updateHistory && window.location.pathname !== pageRoutes[page]) {
             window.history.pushState({ page }, '', pageRoutes[page]);
@@ -1517,12 +1707,17 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         } else if (e.target.id === 'add-asset-form') {
              const nameInput = e.target.querySelector('input[name="name"]');
              const balanceInput = e.target.querySelector('input[name="balance"]');
-             if (nameInput.value.trim()) {
-                 const { error } = await supabase.from('assets').insert({
-                     user_id: currentUserId,
-                     name: nameInput.value.trim(),
-                     balance: parseFloat(balanceInput.value) || 0
-                 });
+             const nextAssetName = nameInput.value.trim();
+             if (isProtectedAssetName(nextAssetName)) {
+                 showProtectedAssetModal();
+                 return;
+             }
+             if (nextAssetName) {
+                  const { error } = await supabase.from('assets').insert({
+                      user_id: currentUserId,
+                     name: nextAssetName,
+                      balance: parseFloat(balanceInput.value) || 0
+                  });
                  if (error) console.error('Failed to add asset', error);
              }
         }
@@ -2549,17 +2744,22 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             <div>
                 <h3 class="font-semibold mb-2">Your Accounts</h3>
                 <ul id="manage-asset-list" class="space-y-2 mb-4">
-                    ${state.assets.map(asset => `
+                    ${state.assets.map(asset => {
+                        const isProtected = isProtectedAssetName(asset.name);
+                        const disabledClass = isProtected ? ' opacity-40 cursor-not-allowed pointer-events-none' : '';
+                        const disabledAttrs = isProtected ? ' disabled aria-disabled="true" title="Bank and Cash are permanent assets."' : '';
+                        return `
                         <li class="asset-item flex justify-between items-center p-2 bg-muted/60 rounded" data-id="${asset.id}" data-name="${asset.name}">
                              <span class="asset-name">${asset.name}</span>
                              <div class="asset-actions flex items-center space-x-2">
-                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full">
+                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full${disabledClass}"${disabledAttrs}>
                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                                  </button>
-                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none">&times;</button>
+                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none${disabledClass}"${disabledAttrs}>&times;</button>
                              </div>
                         </li>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </ul>
                 <h3 class="font-semibold mb-2 mt-6">Add New Asset</h3>
                 <form id="add-asset-form" class="flex gap-2">
@@ -2577,6 +2777,10 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const listItem = deleteBtn.closest('.asset-item');
             const assetId = listItem.dataset.id;
             const assetName = listItem.dataset.name;
+            if (isProtectedAssetName(assetName)) {
+                showProtectedAssetModal();
+                return;
+            }
             const transactionCount = state.transactions.filter(t => t.assetId === assetId).length;
 
             if (transactionCount > 0) {
@@ -2619,6 +2823,10 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
              const assetNameSpan = listItem.querySelector('.asset-name');
              const assetActions = listItem.querySelector('.asset-actions');
              const oldName = listItem.dataset.name;
+             if (isProtectedAssetName(oldName)) {
+                 showProtectedAssetModal();
+                 return;
+             }
              const assetId = listItem.dataset.id;
              const asset = state.assets.find(a => a.id === assetId);
              if (!asset) return;
@@ -2650,6 +2858,16 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const newName = nameInput.value.trim();
             const newBalance = parseFloat(balanceInput.value);
             const assetId = listItem.dataset.id;
+            const oldName = listItem.dataset.name;
+
+            if (isProtectedAssetName(oldName)) {
+                showProtectedAssetModal();
+                return;
+            }
+            if (isProtectedAssetName(newName)) {
+                showProtectedAssetModal();
+                return;
+            }
 
             if (!isNaN(newBalance) && newBalance < 0) {
                 showInsufficientFundsModal(newName || listItem.dataset.name, newBalance, newBalance);

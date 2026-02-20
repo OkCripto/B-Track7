@@ -401,6 +401,37 @@
   outline: none;
 }
 
+.budget-dashboard .input-invalid {
+  border-color: rgb(244 63 94) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, rgb(244 63 94) 24%, transparent) !important;
+}
+
+.budget-dashboard .field-error {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(251 113 133);
+}
+
+.budget-dashboard input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
+  filter: invert(79%) sepia(6%) saturate(219%) hue-rotate(173deg) brightness(93%) contrast(90%);
+  cursor: pointer;
+}
+
+:root.dark .budget-dashboard input[type="date"] {
+  color-scheme: dark;
+}
+
+:root:not(.dark) .budget-dashboard input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.65;
+  filter: none;
+}
+
+:root:not(.dark) .budget-dashboard input[type="date"] {
+  color-scheme: light;
+}
+
 .budget-dashboard .type-toggle-btn:hover:not(.bg-accent) {
   transform: translateY(-2px);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
