@@ -160,6 +160,10 @@
     filter: none;
     transition: none;
   }
+
+  .changelog-particle-dot {
+    animation: none;
+  }
 }
 
 @keyframes pathTravel {
@@ -169,6 +173,81 @@
   100% {
     stroke-dashoffset: calc(-1 * var(--offset));
   }
+}
+
+@keyframes changelogParticleFloat {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(var(--drift-x), var(--drift-y), 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.changelog-scroll-particles {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(56, 189, 248, 0.18), transparent 34%),
+    radial-gradient(circle at 82% 80%, rgba(14, 165, 233, 0.16), transparent 38%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.88) 0%, rgba(0, 0, 0, 0.92) 100%);
+}
+
+.changelog-scroll-glow {
+  position: absolute;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+}
+
+.changelog-scroll-glow-left {
+  left: -8rem;
+  top: 3rem;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.34), transparent 68%);
+}
+
+.changelog-scroll-glow-right {
+  right: -10rem;
+  top: 22rem;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.32), transparent 70%);
+}
+
+.changelog-particle-layer {
+  position: absolute;
+  inset: -24%;
+  will-change: transform;
+}
+
+.changelog-particle-layer-far {
+  opacity: 0.62;
+}
+
+.changelog-particle-layer-mid {
+  opacity: 0.8;
+}
+
+.changelog-particle-layer-near {
+  opacity: 0.96;
+}
+
+.changelog-particle-dot {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(186, 230, 253, 0.98), rgba(56, 189, 248, 0.9));
+  mix-blend-mode: screen;
+  box-shadow:
+    0 0 9px rgba(56, 189, 248, 0.7),
+    0 0 18px rgba(14, 165, 233, 0.5);
+  animation: changelogParticleFloat var(--float-duration) ease-in-out infinite;
+  animation-delay: var(--float-delay);
 }
 
 .budget-dashboard {
