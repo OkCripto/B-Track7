@@ -1,9 +1,31 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChangelogScrollParticleField } from "@/components/changelog/scroll-particle-field";
+import type { Metadata } from "next";
+import { ReleaseNotesScrollParticleField } from "@/components/release-notes/scroll-particle-field";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-type RawChangeLogRecord = {
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Release Notes | B-Track7",
+  description: "Track every B-Track7 product update, including improvements, fixes, and patches.",
+  alternates: {
+    canonical: "/releases",
+  },
+  openGraph: {
+    title: "Release Notes | B-Track7",
+    description: "Track every B-Track7 product update, including improvements, fixes, and patches.",
+    url: "/releases",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Release Notes | B-Track7",
+    description: "Track every B-Track7 product update, including improvements, fixes, and patches.",
+  },
+};
+
+type RawReleaseNoteRecord = {
   id: string;
   version: string;
   title: string | null;
@@ -15,7 +37,7 @@ type RawChangeLogRecord = {
   created_at: string;
 };
 
-type ChangeLogRecord = {
+type ReleaseNoteRecord = {
   id: string;
   version: string;
   title: string;
@@ -31,10 +53,10 @@ function parseStringList(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
-async function getChangeLogs(): Promise<ChangeLogRecord[]> {
+async function getReleaseNotes(): Promise<ReleaseNoteRecord[]> {
   const supabase = await createSupabaseServerClient({ allowSetCookies: false });
   const { data, error } = await supabase
-    .from("change_logs")
+    .from("release_notes")
     .select("id, version, title, description, released_on, improvements, fixes, patches, created_at")
     .order("released_on", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
@@ -43,7 +65,7 @@ async function getChangeLogs(): Promise<ChangeLogRecord[]> {
     return [];
   }
 
-  return (data as RawChangeLogRecord[]).map((row) => ({
+  return (data as RawReleaseNoteRecord[]).map((row) => ({
     id: row.id,
     version: row.version,
     title: row.title?.trim() || "Product update",
@@ -92,19 +114,19 @@ function ChangeSection({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-export default async function ChangelogPage() {
-  const changeLogs = await getChangeLogs();
+export default async function ReleaseNotesPage() {
+  const releaseNotes = await getReleaseNotes();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
-      <ChangelogScrollParticleField />
+      <ReleaseNotesScrollParticleField />
       <div
         aria-hidden
         className="absolute inset-0 z-[2] bg-gradient-to-b from-black/36 via-black/26 to-black/40"
       />
       <header className="fixed left-1/2 top-6 z-50 w-[min(94%,980px)] -translate-x-1/2">
         <div className="grid items-center gap-4 rounded-full border border-white/10 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur-xl md:grid-cols-[1fr_auto_1fr]">
-          <Link href="/" className="flex items-center gap-3 text-base font-semibold tracking-tight">
+          <Link href="/" className="inline-flex w-fit items-center gap-3 text-base font-semibold tracking-tight">
             <Image
               src="/logo.svg"
               alt="B-Track7 logo"
@@ -126,7 +148,7 @@ export default async function ChangelogPage() {
             <Link className="transition hover:text-white" href="/#faq">
               FAQ
             </Link>
-            <span className="text-white">Changelogs</span>
+            <span className="text-white">Release Notes</span>
           </nav>
 
           <div className="flex items-center justify-end gap-3 text-sm font-semibold">
@@ -142,16 +164,13 @@ export default async function ChangelogPage() {
 
       <main className="relative z-10 mx-auto max-w-6xl px-6 pb-20 pt-32">
         <section className="mb-10 border-b border-white/10 pb-8">
-          <p className="text-xs uppercase tracking-[0.4em] text-white/50">Changelog</p>
-          <h1 className="mt-4 text-3xl font-semibold sm:text-4xl font-display">Product Updates</h1>
-          <p className="mt-4 max-w-2xl text-white/70">
-            Version-by-version updates with categorized improvements, fixes, and patches.
-          </p>
+          <h1 className="text-3xl font-bold sm:text-4xl">Release Notes</h1>
+          <p className="mt-3 text-sm text-white/60">Track every improvement and evolution.</p>
         </section>
 
-        {changeLogs.length === 0 ? (
+        {releaseNotes.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
-            No changelog entries have been published yet.
+            No release notes have been published yet.
           </div>
         ) : (
           <section className="space-y-6">
@@ -160,7 +179,7 @@ export default async function ChangelogPage() {
               <p>Description</p>
             </div>
 
-            {changeLogs.map((entry) => (
+            {releaseNotes.map((entry) => (
               <article key={entry.id} className="md:grid md:grid-cols-[170px_1fr] md:gap-8">
                 <div className="pb-4 md:pb-0">
                   <p className="text-2xl font-semibold tracking-tight">{formatVersion(entry.version)}</p>

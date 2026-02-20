@@ -68,11 +68,11 @@ function ParticleLayer({
   speed: number;
 }) {
   return (
-    <div className={`changelog-particle-layer ${className ?? ""}`} data-scroll-speed={speed}>
+    <div className={`release-notes-particle-layer ${className ?? ""}`} data-scroll-speed={speed}>
       {particles.map((particle) => (
         <span
           key={particle.id}
-          className="changelog-particle-dot"
+          className="release-notes-particle-dot"
           style={
             {
               left: `${particle.x}%`,
@@ -94,7 +94,7 @@ function ParticleLayer({
   );
 }
 
-export function ChangelogScrollParticleField() {
+export function ReleaseNotesScrollParticleField() {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -132,21 +132,21 @@ export function ChangelogScrollParticleField() {
   }, []);
 
   return (
-    <div ref={rootRef} aria-hidden className="changelog-scroll-particles">
-      <div className="changelog-nebula-layer changelog-nebula-a" data-scroll-speed={0.07} />
-      <div className="changelog-nebula-layer changelog-nebula-b" data-scroll-speed={0.1} />
-      <div className="changelog-shooting-star-layer" data-scroll-speed={0.18}>
-        <span className="changelog-shooting-star changelog-shooting-star-a" />
-        <span className="changelog-shooting-star changelog-shooting-star-b" />
-        <span className="changelog-shooting-star changelog-shooting-star-c" />
-        <span className="changelog-shooting-star changelog-shooting-star-d" />
-        <span className="changelog-shooting-star changelog-shooting-star-e" />
+    <div ref={rootRef} aria-hidden className="release-notes-scroll-particles">
+      <div className="release-notes-nebula-layer release-notes-nebula-a" data-scroll-speed={0.07} />
+      <div className="release-notes-nebula-layer release-notes-nebula-b" data-scroll-speed={0.1} />
+      <div className="release-notes-shooting-star-layer" data-scroll-speed={0.18}>
+        <span className="release-notes-shooting-star release-notes-shooting-star-a" />
+        <span className="release-notes-shooting-star release-notes-shooting-star-b" />
+        <span className="release-notes-shooting-star release-notes-shooting-star-c" />
+        <span className="release-notes-shooting-star release-notes-shooting-star-d" />
+        <span className="release-notes-shooting-star release-notes-shooting-star-e" />
       </div>
-      <div className="changelog-scroll-glow changelog-scroll-glow-left" />
-      <div className="changelog-scroll-glow changelog-scroll-glow-right" />
-      <ParticleLayer particles={FAR_PARTICLES} speed={0.12} className="changelog-particle-layer-far" />
-      <ParticleLayer particles={MID_PARTICLES} speed={0.22} className="changelog-particle-layer-mid" />
-      <ParticleLayer particles={NEAR_PARTICLES} speed={0.34} className="changelog-particle-layer-near" />
+      <div className="release-notes-scroll-glow release-notes-scroll-glow-left" />
+      <div className="release-notes-scroll-glow release-notes-scroll-glow-right" />
+      <ParticleLayer particles={FAR_PARTICLES} speed={0.12} className="release-notes-particle-layer-far" />
+      <ParticleLayer particles={MID_PARTICLES} speed={0.22} className="release-notes-particle-layer-mid" />
+      <ParticleLayer particles={NEAR_PARTICLES} speed={0.34} className="release-notes-particle-layer-near" />
     </div>
   );
 }

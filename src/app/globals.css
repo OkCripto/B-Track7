@@ -161,11 +161,11 @@
     transition: none;
   }
 
-  .changelog-particle-dot {
+  .release-notes-particle-dot {
     animation: none;
   }
 
-  .changelog-shooting-star {
+  .release-notes-shooting-star {
     animation: none;
     opacity: 0;
   }
@@ -180,7 +180,7 @@
   }
 }
 
-@keyframes changelogParticleFloat {
+@keyframes release-notesParticleFloat {
   0% {
     transform: translate3d(0, 0, 0);
   }
@@ -192,7 +192,7 @@
   }
 }
 
-@keyframes changelogSpaceDrift {
+@keyframes release-notesSpaceDrift {
   0% {
     background-position:
       7% 5%,
@@ -205,7 +205,7 @@
   }
 }
 
-@keyframes changelogShootingStar {
+@keyframes release-notesShootingStar {
   0% {
     opacity: 0;
     transform: translate3d(0, 0, 0) rotate(-24deg) scaleX(0.6);
@@ -223,7 +223,7 @@
   }
 }
 
-.changelog-scroll-particles {
+.release-notes-scroll-particles {
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -232,10 +232,10 @@
   background:
     radial-gradient(28% 24% at 7% 5%, rgba(30, 58, 138, 0.2), rgba(17, 24, 39, 0.1) 42%, transparent 74%),
     linear-gradient(180deg, rgba(2, 4, 14, 0.995) 0%, rgba(0, 0, 0, 1) 100%);
-  animation: changelogSpaceDrift 80s linear infinite alternate;
+  animation: release-notesSpaceDrift 80s linear infinite alternate;
 }
 
-.changelog-nebula-layer {
+.release-notes-nebula-layer {
   position: absolute;
   inset: -24%;
   border-radius: 9999px;
@@ -243,7 +243,7 @@
   mix-blend-mode: screen;
 }
 
-.changelog-nebula-a {
+.release-notes-nebula-a {
   background:
     radial-gradient(ellipse at 10% 12%, rgba(30, 58, 138, 0.08), transparent 62%),
     radial-gradient(ellipse at 20% 24%, rgba(29, 78, 216, 0.04), transparent 70%);
@@ -251,20 +251,20 @@
   opacity: 0.16;
 }
 
-.changelog-nebula-b {
+.release-notes-nebula-b {
   background:
     radial-gradient(ellipse at 14% 10%, rgba(30, 58, 138, 0.04), transparent 62%);
   filter: blur(72px);
   opacity: 0.05;
 }
 
-.changelog-shooting-star-layer {
+.release-notes-shooting-star-layer {
   position: absolute;
   inset: -12%;
   will-change: transform;
 }
 
-.changelog-shooting-star {
+.release-notes-shooting-star {
   position: absolute;
   display: block;
   height: 1.5px;
@@ -273,17 +273,17 @@
   box-shadow: 0 0 10px rgba(125, 211, 252, 0.45);
   opacity: 0;
   transform-origin: center;
-  animation: changelogShootingStar 28s linear infinite;
+  animation: release-notesShootingStar 28s linear infinite;
 }
 
-.changelog-shooting-star-a {
+.release-notes-shooting-star-a {
   top: 16%;
   right: -6%;
   width: 120px;
   animation-delay: 3s;
 }
 
-.changelog-shooting-star-b {
+.release-notes-shooting-star-b {
   top: 28%;
   right: 8%;
   width: 92px;
@@ -291,7 +291,7 @@
   animation-delay: 11s;
 }
 
-.changelog-shooting-star-c {
+.release-notes-shooting-star-c {
   top: 11%;
   right: 24%;
   width: 106px;
@@ -299,7 +299,7 @@
   animation-delay: 17s;
 }
 
-.changelog-shooting-star-d {
+.release-notes-shooting-star-d {
   top: 34%;
   right: 2%;
   width: 88px;
@@ -307,7 +307,7 @@
   animation-delay: 7s;
 }
 
-.changelog-shooting-star-e {
+.release-notes-shooting-star-e {
   top: 20%;
   right: 18%;
   width: 98px;
@@ -315,7 +315,7 @@
   animation-delay: 23s;
 }
 
-.changelog-scroll-glow {
+.release-notes-scroll-glow {
   position: absolute;
   width: 24rem;
   height: 24rem;
@@ -324,40 +324,40 @@
   opacity: 0.12;
 }
 
-.changelog-scroll-glow-left {
+.release-notes-scroll-glow-left {
   left: -7rem;
   top: 1rem;
   background: radial-gradient(circle, rgba(30, 58, 138, 0.12), transparent 76%);
 }
 
-.changelog-scroll-glow-right {
+.release-notes-scroll-glow-right {
   display: none;
 }
 
-.changelog-particle-layer {
+.release-notes-particle-layer {
   position: absolute;
   inset: -18%;
   will-change: transform;
 }
 
-.changelog-particle-layer-far {
+.release-notes-particle-layer-far {
   opacity: 0.48;
 }
 
-.changelog-particle-layer-mid {
+.release-notes-particle-layer-mid {
   opacity: 0.72;
 }
 
-.changelog-particle-layer-near {
+.release-notes-particle-layer-near {
   opacity: 0.9;
 }
 
-.changelog-particle-dot {
+.release-notes-particle-dot {
   position: absolute;
   display: block;
   border-radius: 9999px;
   mix-blend-mode: screen;
-  animation: changelogParticleFloat var(--float-duration) ease-in-out infinite;
+  animation: release-notesParticleFloat var(--float-duration) ease-in-out infinite;
   animation-delay: var(--float-delay);
 }
 
@@ -892,3 +892,4 @@
   border-color: var(--accent);
   transform: scale(1.2);
 }
+
