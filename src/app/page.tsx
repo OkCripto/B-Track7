@@ -1,4 +1,4 @@
-﻿import Image from "next/image";
+import Image from "next/image";
 import Link from "next/link";
 import { ParticleTextEffect } from "@/components/landing/particle-text-effect";
 import { Reveal } from "@/components/landing/reveal";
@@ -77,7 +77,7 @@ export default async function Home() {
     <div className="min-h-screen bg-black text-white">
       <header className="fixed left-1/2 top-6 z-50 w-[min(94%,980px)] -translate-x-1/2">
         <div className="grid items-center gap-4 rounded-full border border-white/10 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur-xl md:grid-cols-[1fr_auto_1fr]">
-          <Link href="/" className="flex items-center gap-3 text-base font-semibold tracking-tight">
+          <Link href="/" className="inline-flex w-fit items-center gap-3 text-base font-semibold tracking-tight">
             <Image
               src="/logo.svg"
               alt="B-Track7 logo"
@@ -99,6 +99,9 @@ export default async function Home() {
             <a className="transition hover:text-white" href="#faq">
               FAQ
             </a>
+            <Link className="transition hover:text-white" href="/releases">
+              Release Notes
+            </Link>
           </nav>
 
           <div className="flex items-center justify-end gap-3 text-sm font-semibold">
@@ -180,15 +183,10 @@ export default async function Home() {
                 {features.map((feature) => (
                   <div
                     key={feature.title}
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur"
+                    className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur"
                   >
-                    <div className="absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_60%)]" />
-                    </div>
-                    <div className="relative">
-                      <h3 className="text-xl font-semibold">{feature.title}</h3>
-                      <p className="mt-3 text-sm text-white/70">{feature.description}</p>
-                    </div>
+                    <h3 className="text-xl font-semibold">{feature.title}</h3>
+                    <p className="mt-3 text-sm text-white/70">{feature.description}</p>
                   </div>
                 ))}
               </div>
@@ -316,3 +314,4 @@ export default async function Home() {
     </div>
   );
 }
+
