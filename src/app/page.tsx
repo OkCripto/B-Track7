@@ -1,4 +1,4 @@
-﻿import Image from "next/image";
+import Image from "next/image";
 import Link from "next/link";
 import { ParticleTextEffect } from "@/components/landing/particle-text-effect";
 import { Reveal } from "@/components/landing/reveal";
@@ -99,6 +99,9 @@ export default async function Home() {
             <a className="transition hover:text-white" href="#faq">
               FAQ
             </a>
+            <Link className="transition hover:text-white" href="/changelogs">
+              Changelogs
+            </Link>
           </nav>
 
           <div className="flex items-center justify-end gap-3 text-sm font-semibold">
@@ -316,3 +319,4 @@ export default async function Home() {
     </div>
   );
 }
+
