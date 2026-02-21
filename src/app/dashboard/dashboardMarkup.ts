@@ -421,7 +421,10 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                                     <p class="text-sm font-medium text-foreground">Compact currency</p>
                                     <p class="text-xs text-muted-foreground">Show summary amounts as K/M abbreviations.</p>
                                 </div>
-                                <input id="compact-currency-toggle" type="checkbox" class="h-4 w-4 accent-accent" checked>
+                                <div class="flex items-center">
+                                    <input id="compact-currency-toggle" type="checkbox" class="sr-only peer" checked>
+                                    <div class="relative h-6 w-11 rounded-full border border-border bg-muted/60 transition-colors peer-checked:bg-accent/80 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></div>
+                                </div>
                             </label>
                             <button type="submit" class="btn-primary px-4 py-2 rounded-md">Save Settings</button>
                             <p id="settings-status" class="text-xs text-muted-foreground"></p>
