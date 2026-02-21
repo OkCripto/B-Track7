@@ -287,6 +287,8 @@ export default function DashboardClient({
     }
   };
 
+  const logoSrc = theme === "dark" ? "/logo.svg" : "/logo-w.svg";
+
   const expenseSlot =
     typeof document === "undefined"
       ? null
@@ -325,7 +327,7 @@ export default function DashboardClient({
                 )}
               >
                 <Image
-                  src="/logo.svg"
+                  src={logoSrc}
                   alt="B-Track7"
                   width={32}
                   height={32}
