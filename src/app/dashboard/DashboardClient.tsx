@@ -573,11 +573,17 @@ export default function DashboardClient({
                   <path d="m21 21-4.3-4.3" />
                 </svg>
                 <input
+                  id="transaction-search-input"
                   type="text"
                   placeholder="Search..."
+                  autoComplete="off"
                   onFocus={() => dispatch({ type: "setSearchFocused", value: true })}
                   onBlur={() => dispatch({ type: "setSearchFocused", value: false })}
                   className="w-full h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-accent transition-all duration-200"
+                />
+                <div
+                  id="transaction-search-dropdown"
+                  className="absolute left-0 right-0 top-full z-40 mt-2 hidden max-h-72 overflow-auto rounded-xl border border-border/60 bg-card/95 p-1 shadow-xl backdrop-blur"
                 />
               </div>
               <Button
