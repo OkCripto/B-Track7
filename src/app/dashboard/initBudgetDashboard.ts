@@ -2543,6 +2543,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const transferToSelect = document.getElementById('transfer-to');
         transferFromSelect.innerHTML = state.assets.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
         transferToSelect.innerHTML = state.assets.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+        const bankAsset = state.assets.find(asset => normalizeAssetName(asset.name) === 'bank');
+        const cashAsset = state.assets.find(asset => normalizeAssetName(asset.name) === 'cash');
+        if (bankAsset && cashAsset) {
+            transferFromSelect.value = bankAsset.id;
+            transferToSelect.value = cashAsset.id;
+        }
         
         renderAssetPieChart();
     };
@@ -2746,16 +2752,17 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 <ul id="manage-asset-list" class="space-y-2 mb-4">
                     ${state.assets.map(asset => {
                         const isProtected = isProtectedAssetName(asset.name);
-                        const disabledClass = isProtected ? ' opacity-40 cursor-not-allowed pointer-events-none' : '';
-                        const disabledAttrs = isProtected ? ' disabled aria-disabled="true" title="Bank and Cash are permanent assets."' : '';
+                        const deleteDisabledClass = isProtected ? ' opacity-40 cursor-not-allowed pointer-events-none' : '';
+                        const deleteDisabledAttrs = isProtected ? ' disabled aria-disabled="true" title="Bank and Cash are permanent assets and cannot be deleted."' : '';
+                        const renameTitle = isProtected ? ' title="Cash and Bank names are locked. You can still edit the balance."' : '';
                         return `
                         <li class="asset-item flex justify-between items-center p-2 bg-muted/60 rounded" data-id="${asset.id}" data-name="${asset.name}">
                              <span class="asset-name">${asset.name}</span>
                              <div class="asset-actions flex items-center space-x-2">
-                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full${disabledClass}"${disabledAttrs}>
+                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full"${renameTitle}>
                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                                  </button>
-                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none${disabledClass}"${disabledAttrs}>&times;</button>
+                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none${deleteDisabledClass}"${deleteDisabledAttrs}>&times;</button>
                              </div>
                         </li>
                     `;
@@ -2823,10 +2830,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
              const assetNameSpan = listItem.querySelector('.asset-name');
              const assetActions = listItem.querySelector('.asset-actions');
              const oldName = listItem.dataset.name;
-             if (isProtectedAssetName(oldName)) {
-                 showProtectedAssetModal();
-                 return;
-             }
+             const isProtected = isProtectedAssetName(oldName);
              const assetId = listItem.dataset.id;
              const asset = state.assets.find(a => a.id === assetId);
              if (!asset) return;
@@ -2836,7 +2840,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
              const editContainer = document.createElement('div');
              editContainer.className = 'flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 items-center';
              editContainer.innerHTML = `
-                <input type="text" class="asset-name-input block w-full rounded-md border-border shadow-sm sm:text-sm" value="${oldName}">
+                <input type="text" class="asset-name-input block w-full rounded-md border-border shadow-sm sm:text-sm" value="${oldName}"${isProtected ? ' disabled aria-disabled="true" title="Cash and Bank names are locked."' : ''}>
                 <div class="relative">
                      <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-muted-foreground sm:text-sm">₹</span></div>
                      <input type="number" step="0.01" class="asset-balance-input block w-full rounded-md border-border shadow-sm sm:text-sm pl-7" value="${asset.balance}">
@@ -2847,7 +2851,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                  </div>
             `;
              listItem.prepend(editContainer);
-             editContainer.querySelector('input').focus();
+             const inputToFocus = editContainer.querySelector(isProtected ? '.asset-balance-input' : '.asset-name-input');
+             if (inputToFocus) inputToFocus.focus();
         }
 
         const saveRenameBtn = e.target.closest('.save-rename-asset-btn');
@@ -2859,12 +2864,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const newBalance = parseFloat(balanceInput.value);
             const assetId = listItem.dataset.id;
             const oldName = listItem.dataset.name;
+            const isProtected = isProtectedAssetName(oldName);
+            const isRenamingProtectedAsset = isProtected && normalizeAssetName(newName) !== normalizeAssetName(oldName);
+            const isClaimingProtectedName = !isProtected && isProtectedAssetName(newName);
 
-            if (isProtectedAssetName(oldName)) {
-                showProtectedAssetModal();
-                return;
-            }
-            if (isProtectedAssetName(newName)) {
+            if (isRenamingProtectedAsset || isClaimingProtectedName) {
                 showProtectedAssetModal();
                 return;
             }
@@ -2874,10 +2878,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 return;
             }
 
-            if (newName && !isNaN(newBalance)) {
+            if ((isProtected || newName) && !isNaN(newBalance)) {
+                const updatePayload = isProtected
+                    ? { balance: newBalance }
+                    : { name: newName, balance: newBalance };
                 const { error } = await supabase
                     .from('assets')
-                    .update({ name: newName, balance: newBalance })
+                    .update(updatePayload)
                     .eq('id', assetId);
                 if (error) {
                     console.error('Failed to update asset', error);

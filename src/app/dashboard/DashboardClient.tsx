@@ -2,7 +2,14 @@
 
 import Script from "next/script";
 import Image from "next/image";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
@@ -17,6 +24,10 @@ import {
 import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import ExpenseByCategoryGauge from "./analytics/ExpenseByCategoryGauge";
+
+type BudgetDashboardWindow = Window & {
+  __budgetDashboardSetPage?: (page: DashboardPage) => void;
+};
 
 type DashboardClientProps = {
   fontClassName?: string;
@@ -117,18 +128,88 @@ const pageTitles: Record<DashboardPage, string> = {
   settings: "Settings",
 };
 
+type DashboardTheme = "light" | "dark";
+
+type DashboardUIState = {
+  activePage: DashboardPage;
+  chartsReady: boolean;
+  markupReady: boolean;
+  sidebarCollapsed: boolean;
+  theme: DashboardTheme;
+  searchFocused: boolean;
+};
+
+type DashboardUIAction =
+  | { type: "setActivePage"; value: DashboardPage }
+  | { type: "setChartsReady"; value: boolean }
+  | { type: "setMarkupReady"; value: boolean }
+  | { type: "toggleSidebar" }
+  | { type: "setTheme"; value: DashboardTheme }
+  | { type: "setSearchFocused"; value: boolean };
+
+const createInitialUIState = (initialPage?: DashboardPage): DashboardUIState => ({
+  activePage: initialPage ?? "tracker",
+  chartsReady: false,
+  markupReady: false,
+  sidebarCollapsed: false,
+  theme: "dark",
+  searchFocused: false,
+});
+
+const dashboardUIReducer = (
+  state: DashboardUIState,
+  action: DashboardUIAction
+): DashboardUIState => {
+  switch (action.type) {
+    case "setActivePage":
+      return { ...state, activePage: action.value };
+    case "setChartsReady":
+      return { ...state, chartsReady: action.value };
+    case "setMarkupReady":
+      return { ...state, markupReady: action.value };
+    case "toggleSidebar":
+      return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+    case "setTheme":
+      return { ...state, theme: action.value };
+    case "setSearchFocused":
+      return { ...state, searchFocused: action.value };
+    default:
+      return state;
+  }
+};
+
+type DashboardMarkupContainerProps = {
+  initialPage: DashboardPage;
+  onReady: () => void;
+};
+
+function DashboardMarkupContainer({
+  initialPage,
+  onReady,
+}: DashboardMarkupContainerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const markupHtml = useMemo(() => dashboardMarkup(initialPage), [initialPage]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const template = document.createElement("template");
+    template.innerHTML = markupHtml;
+    container.replaceChildren(template.content.cloneNode(true));
+    onReady();
+  }, [markupHtml, onReady]);
+
+  return <div ref={containerRef} />;
+}
+
 export default function DashboardClient({
   fontClassName = "",
   initialPage,
 }: DashboardClientProps) {
-  const [chartsReady, setChartsReady] = useState(false);
-  const [activePage, setActivePage] = useState<DashboardPage>(
-    initialPage ?? "tracker"
-  );
-  const [expenseSlot, setExpenseSlot] = useState<HTMLElement | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [uiState, dispatch] = useReducer(dashboardUIReducer, initialPage, createInitialUIState);
+  const { activePage, chartsReady, markupReady, sidebarCollapsed, theme, searchFocused } =
+    uiState;
   const initializedRef = useRef(false);
   const activePageRef = useRef(activePage);
 
@@ -143,16 +224,15 @@ export default function DashboardClient({
     []
   );
 
-  const markup = useMemo(
-    () => ({ __html: dashboardMarkup(initialPage ?? "tracker") }),
-    [initialPage]
-  );
+  const handleMarkupReady = useCallback(() => {
+    dispatch({ type: "setMarkupReady", value: true });
+  }, []);
 
   useEffect(() => {
-    if (!chartsReady || initializedRef.current) return;
+    if (!chartsReady || !markupReady || initializedRef.current) return;
     initializedRef.current = true;
     initBudgetDashboard({ initialPage });
-  }, [chartsReady, initialPage]);
+  }, [chartsReady, markupReady, initialPage]);
 
   useEffect(() => {
     activePageRef.current = activePage;
@@ -163,7 +243,7 @@ export default function DashboardClient({
     const handlePageChange = (event: Event) => {
       const detail = (event as CustomEvent<{ page?: DashboardPage }>).detail;
       if (!detail?.page || detail.page === activePageRef.current) return;
-      setActivePage(detail.page);
+      dispatch({ type: "setActivePage", value: detail.page });
     };
     window.addEventListener("budget:page-change", handlePageChange as EventListener);
     return () => {
@@ -178,48 +258,46 @@ export default function DashboardClient({
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem("theme");
     const initial = stored === "light" || stored === "dark" ? stored : "dark";
-    setTheme(initial);
+    dispatch({ type: "setTheme", value: initial });
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const node = document.getElementById("expense-by-category-slot");
-    setExpenseSlot(node);
-  }, [chartsReady]);
-
   const handleNavigate = (page: DashboardPage) => {
     if (typeof window === "undefined") return;
-    const setPage = (window as Window & { __budgetDashboardSetPage?: Function })
-      .__budgetDashboardSetPage;
+    const setPage = (window as BudgetDashboardWindow).__budgetDashboardSetPage;
     if (typeof setPage === "function") {
       setPage(page);
       return;
     }
-    window.location.href = pageRoutes[page];
+    window.location.assign(pageRoutes[page]);
   };
 
   const handleSignOut = async () => {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.assign("/login");
   };
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
+    dispatch({ type: "setTheme", value: nextTheme });
     if (typeof window !== "undefined") {
       window.localStorage.setItem("theme", nextTheme);
       document.documentElement.classList.toggle("dark", nextTheme === "dark");
     }
   };
 
+  const expenseSlot =
+    typeof document === "undefined"
+      ? null
+      : document.getElementById("expense-by-category-slot");
+
   return (
     <div className={cn("budget-dashboard min-h-screen", fontClassName)}>
       <Script
         src="https://cdn.jsdelivr.net/npm/chart.js"
         strategy="afterInteractive"
-        onLoad={() => setChartsReady(true)}
+        onLoad={() => dispatch({ type: "setChartsReady", value: true })}
       />
       <div className="flex min-h-screen text-foreground">
         <aside
@@ -264,7 +342,7 @@ export default function DashboardClient({
               </span>
             </div>
             <button
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              onClick={() => dispatch({ type: "toggleSidebar" })}
               className={cn(
                 "ml-auto rounded-lg flex items-center justify-center text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200",
                 sidebarCollapsed ? "h-8 w-8" : "h-9 w-9"
@@ -497,8 +575,8 @@ export default function DashboardClient({
                 <input
                   type="text"
                   placeholder="Search..."
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
+                  onFocus={() => dispatch({ type: "setSearchFocused", value: true })}
+                  onBlur={() => dispatch({ type: "setSearchFocused", value: false })}
                   className="w-full h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-accent transition-all duration-200"
                 />
               </div>
@@ -627,7 +705,10 @@ export default function DashboardClient({
           </header>
           <main className="flex-1 p-6 overflow-auto">
             <div className="content-animate">
-              <div dangerouslySetInnerHTML={markup} />
+              <DashboardMarkupContainer
+                initialPage={initialPage ?? "tracker"}
+                onReady={handleMarkupReady}
+              />
             </div>
             {expenseSlot && createPortal(<ExpenseByCategoryGauge />, expenseSlot)}
           </main>
@@ -636,3 +717,4 @@ export default function DashboardClient({
     </div>
   );
 }
+
