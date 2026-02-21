@@ -46,6 +46,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 startDate: '',
                 endDate: ''
             },
+            highlightTransactionId: null,
             analytics: {
                 period: 'this-month',
                 year: new Date().getFullYear(),
@@ -858,6 +859,15 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return timeB - timeA;
         });
 
+        if (container.id === 'full-transaction-list-container' && state.ui.highlightTransactionId) {
+            const highlightIndex = sortedTransactions.findIndex(t => t.id === state.ui.highlightTransactionId);
+            if (highlightIndex > -1) {
+                const [highlighted] = sortedTransactions.splice(highlightIndex, 1);
+                sortedTransactions.unshift(highlighted);
+                state.ui.highlightTransactionId = null;
+            }
+        }
+
         const transactionsToDisplay = (container.id === 'transaction-list-container') ? sortedTransactions.slice(0, 10) : sortedTransactions;
 
 
@@ -1569,6 +1579,126 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     if (viewAllTransactionsBtn) {
         viewAllTransactionsBtn.addEventListener('click', () => setPage('all-transactions'));
+    }
+
+    // -------------------------------------------------------------------------
+    // HEADER SEARCH (Transactions)
+    // -------------------------------------------------------------------------
+
+    const transactionSearchInput = document.getElementById('transaction-search-input');
+    const transactionSearchDropdown = document.getElementById('transaction-search-dropdown');
+    const transactionSearchWrapper = transactionSearchDropdown?.parentElement;
+
+    const clearTransactionSearchDropdown = () => {
+        if (!transactionSearchDropdown) return;
+        transactionSearchDropdown.innerHTML = '';
+        transactionSearchDropdown.classList.add('hidden');
+    };
+
+    const renderTransactionSearchResults = (query) => {
+        if (!transactionSearchDropdown) return;
+        const normalizedQuery = query.toLowerCase();
+        const matches = state.transactions.filter(t =>
+            String(t.description || '').toLowerCase().includes(normalizedQuery)
+        );
+        const sortedMatches = [...matches].sort((a, b) => {
+            const dateComparison = new Date(b.date) - new Date(a.date);
+            if (dateComparison !== 0) {
+                return dateComparison;
+            }
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            return timeB - timeA;
+        });
+        const results = sortedMatches.slice(0, 5);
+
+        transactionSearchDropdown.innerHTML = '';
+
+        if (results.length === 0) {
+            transactionSearchDropdown.classList.add('hidden');
+            return;
+        }
+
+        results.forEach(t => {
+            const isIncome = t.type === 'income';
+            const sign = isIncome ? '+' : '-';
+            const amountClass = isIncome ? 'text-sky-400' : 'text-rose-400';
+            const assetName = state.assets.find(a => a.id === t.assetId)?.name || 'Unknown';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/40';
+            button.innerHTML = `
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-foreground truncate">${t.description}</p>
+                        <p class="text-xs text-muted-foreground truncate">${t.category} &bull; ${assetName}</p>
+                    </div>
+                    <div class="shrink-0 text-right">
+                        <p class="text-sm font-semibold ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}` : '******'}</p>
+                        <p class="text-xs text-muted-foreground">${formatDateForDisplay(t.date)}</p>
+                    </div>
+                </div>
+            `;
+            button.addEventListener('mousedown', e => e.preventDefault());
+            button.addEventListener('click', () => {
+                state.ui.highlightTransactionId = t.id;
+                state.ui.filters = {
+                    description: '',
+                    type: 'all',
+                    category: 'all',
+                    startDate: '',
+                    endDate: ''
+                };
+                if (typeof setPage === 'function') {
+                    setPage('all-transactions');
+                } else {
+                    window.location.assign(pageRoutes['all-transactions']);
+                }
+                requestAnimationFrame(() => {
+                    if (fullTransactionListContainer) {
+                        fullTransactionListContainer.scrollTop = 0;
+                    }
+                });
+                clearTransactionSearchDropdown();
+            });
+            transactionSearchDropdown.appendChild(button);
+        });
+
+        transactionSearchDropdown.classList.remove('hidden');
+    };
+
+    if (transactionSearchInput && transactionSearchDropdown) {
+        transactionSearchInput.addEventListener('input', () => {
+            const query = transactionSearchInput.value.trim();
+            if (!query) {
+                clearTransactionSearchDropdown();
+                return;
+            }
+            renderTransactionSearchResults(query);
+        });
+
+        transactionSearchInput.addEventListener('focus', () => {
+            const query = transactionSearchInput.value.trim();
+            if (query) {
+                renderTransactionSearchResults(query);
+            }
+        });
+
+        transactionSearchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                clearTransactionSearchDropdown();
+                transactionSearchInput.blur();
+            }
+        });
+
+        transactionSearchDropdown.addEventListener('mousedown', e => e.preventDefault());
+
+        document.addEventListener('click', (e) => {
+            if (!transactionSearchWrapper) return;
+            if (!transactionSearchWrapper.contains(e.target)) {
+                clearTransactionSearchDropdown();
+            }
+        });
     }
 
     // -------------------------------------------------------------------------
