@@ -1,4 +1,10 @@
-﻿export type DashboardPage = "tracker" | "assets" | "all-transactions" | "analytics" | "settings";
+export type DashboardPage =
+  | "tracker"
+  | "assets"
+  | "all-transactions"
+  | "analytics"
+  | "ai-insights"
+  | "settings";
 
 const resolvePageClass = (page: DashboardPage, activePage: DashboardPage) =>
   page === activePage ? "" : "hidden";
@@ -25,7 +31,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                             </div>
                         </div>
                         <div class="flex items-baseline gap-2">
-                        <p id="income-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
+                        <p id="income-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">?0.00</p>
                         <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
@@ -41,7 +47,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                             </div>
                         </div>
                         <div class="flex items-baseline gap-2">
-                        <p id="expense-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
+                        <p id="expense-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">?0.00</p>
                         <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
@@ -57,7 +63,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                             </div>
                         </div>
                         <div class="flex items-baseline gap-2">
-                        <p id="monthly-savings-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
+                        <p id="monthly-savings-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">?0.00</p>
                         <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
@@ -73,7 +79,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                             </div>
                         </div>
                         <div class="flex items-baseline gap-2">
-                        <p id="net-worth-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
+                        <p id="net-worth-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">?0.00</p>
                         <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
                             <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
@@ -82,6 +88,9 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                         </div>
                     </div>
                 </div>
+
+                <div id="overview-savings-reminder-banner" class="hidden mb-3"></div>
+                <div id="overview-ai-insight-strip" class="mb-6"></div>
 
                 <!-- Trend + Category Breakdown -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -214,7 +223,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                         <div class="card card-glow p-6 flex justify-between items-center">
                             <div>
                                 <p class="text-sm font-medium text-muted-foreground">Total Assets</p>
-                                <p id="total-assets-amount" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                                <p id="total-assets-amount" class="text-3xl font-bold text-muted-foreground">₹0.00</p>
                             </div>
                             <div class="p-3 bg-muted/30 rounded-full">
                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 7h18" /><path d="M4 7v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7" /><path d="M12 11v6" /><path d="M9 14h6" /></svg>
@@ -351,15 +360,15 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                      <div class="card card-glow p-6">
                         <p class="text-sm font-medium text-muted-foreground">Net Savings</p>
-                        <p id="analytics-savings" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                        <p id="analytics-savings" class="text-3xl font-bold text-muted-foreground">₹0.00</p>
                     </div>
                     <div class="card card-glow p-6">
                         <p class="text-sm font-medium text-muted-foreground">Total Income</p>
-                        <p id="analytics-income" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                        <p id="analytics-income" class="text-3xl font-bold text-muted-foreground">₹0.00</p>
                     </div>
                     <div class="card card-glow p-6">
                         <p class="text-sm font-medium text-muted-foreground">Total Expenses</p>
-                        <p id="analytics-expenses" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                        <p id="analytics-expenses" class="text-3xl font-bold text-muted-foreground">₹0.00</p>
                     </div>
                 </div>
 
@@ -446,3 +455,4 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
     <div id="chart-tooltip"></div>
 `;
 };
+

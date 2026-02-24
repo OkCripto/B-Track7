@@ -2,7 +2,7 @@
 /* eslint-disable */
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 type BudgetInitOptions = {
-  initialPage?: "tracker" | "assets" | "all-transactions" | "analytics" | "settings";
+  initialPage?: "tracker" | "assets" | "all-transactions" | "analytics" | "ai-insights" | "settings";
 };
 
 export function initBudgetDashboard(options: BudgetInitOptions = {}) {
@@ -34,7 +34,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             useCompactCurrency: true
         },
         ui: {
-            currentPage: 'tracker', // 'tracker', 'assets', 'all-transactions', 'analytics', or 'settings'
+            currentPage: 'tracker', // 'tracker', 'assets', 'all-transactions', 'analytics', 'ai-insights', or 'settings'
             formMode: 'add', // 'add' or 'edit'
             editingId: null,
             activeType: 'expense',
@@ -60,6 +60,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         'assets': '/dashboard/assets',
         'all-transactions': '/dashboard/transactions',
         'analytics': '/dashboard/analytics',
+        'ai-insights': '/dashboard/ai-insights',
         'settings': '/dashboard/settings'
     };
 
@@ -67,6 +68,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         if (path.startsWith('/dashboard/assets')) return 'assets';
         if (path.startsWith('/dashboard/transactions')) return 'all-transactions';
         if (path.startsWith('/dashboard/analytics')) return 'analytics';
+        if (path.startsWith('/dashboard/ai-insights')) return 'ai-insights';
         if (path.startsWith('/dashboard/settings')) return 'settings';
         return 'tracker';
     };
@@ -81,9 +83,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     const supabase = createSupabaseBrowserClient();
     let currentUserId = null;
+    let currentUserPlan = 'Standard';
     let lastEmittedUserId = null;
     let lastEmittedUserEmail = null;
     let lastRenderedPage = null;
+    let overviewAiSummary = null;
+    let overviewSavingsReminder = null;
+    let hasAttemptedOverviewAiBootstrap = false;
 
     const requireUser = async () => {
         const { data, error } = await supabase.auth.getUser();
@@ -170,7 +176,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const user = await requireUser();
         if (!user) return;
 
-        const [assetsRes, categoriesRes, transactionsRes, settingsRes] = await Promise.all([
+        const [assetsRes, categoriesRes, transactionsRes, settingsRes, userRes] = await Promise.all([
             supabase.from('assets').select('*').order('created_at', { ascending: true }),
             supabase.from('categories').select('*').order('created_at', { ascending: true }),
             supabase
@@ -181,6 +187,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 .from('user_settings')
                 .select('monthly_savings_target, use_compact_currency')
                 .eq('user_id', currentUserId)
+                .maybeSingle(),
+            supabase
+                .from('users')
+                .select('user_plan')
+                .eq('id', currentUserId)
                 .maybeSingle()
         ]);
 
@@ -211,6 +222,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             category: categoryName || 'Unknown'
         });
         });
+
+        if (userRes?.error) {
+            console.error('Failed to load user plan', userRes.error);
+            currentUserPlan = 'Standard';
+        } else {
+            currentUserPlan = userRes?.data?.user_plan === 'Pro' ? 'Pro' : 'Standard';
+        }
 
         if (settingsRes?.error) {
             console.error('Failed to load settings', settingsRes.error);
@@ -296,6 +314,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const cashflowTrendCanvas = document.getElementById('cashflow-trend-chart');
     const cashflowTrendEmptyEl = document.getElementById('cashflow-trend-empty');
     const monthlySavingsAmountEl = document.getElementById('monthly-savings-amount');
+    const overviewSavingsReminderBannerEl = document.getElementById('overview-savings-reminder-banner');
+    const overviewAiInsightStripEl = document.getElementById('overview-ai-insight-strip');
 
     const form = document.getElementById('transaction-form');
     const formIdInput = document.getElementById('transaction-id');
@@ -419,6 +439,260 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             day: 'numeric',
             year: 'numeric'
         });
+    };
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+    const parseTimestamp = (value) => {
+        const parsed = Date.parse(String(value || ''));
+        return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
+    const formatMonthYearFromDateKey = (dateKey) => {
+        if (typeof dateKey !== 'string') return 'next month';
+        const [yearRaw, monthRaw] = dateKey.split('-');
+        const year = Number(yearRaw);
+        const month = Number(monthRaw);
+        if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+            return 'next month';
+        }
+
+        const monthDate = new Date(Date.UTC(year, month - 1, 1));
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'long',
+            year: 'numeric'
+        }).format(monthDate);
+    };
+
+    const resolveOverviewAiCtaText = () => {
+        const storageKey = 'btrack7:overview-ai-cta';
+        try {
+            const previous = window.localStorage.getItem(storageKey);
+            const next = previous === 'suggestions' ? 'breakdown' : 'suggestions';
+            window.localStorage.setItem(storageKey, next);
+            return next === 'suggestions' ? 'View Suggestions →' : 'View Breakdown →';
+        } catch {
+            return 'View Suggestions →';
+        }
+    };
+
+    const overviewAiCtaText = resolveOverviewAiCtaText();
+
+    const pickLatestSummary = (weeklySummary, monthlySummary) => {
+        if (!weeklySummary) return monthlySummary;
+        if (!monthlySummary) return weeklySummary;
+        return parseTimestamp(weeklySummary.created_at) >= parseTimestamp(monthlySummary.created_at)
+            ? weeklySummary
+            : monthlySummary;
+    };
+
+    const renderOverviewSavingsReminderBanner = () => {
+        if (!overviewSavingsReminderBannerEl) return;
+
+        if (currentUserPlan !== 'Pro' || !overviewSavingsReminder) {
+            overviewSavingsReminderBannerEl.innerHTML = '';
+            overviewSavingsReminderBannerEl.classList.add('hidden');
+            return;
+        }
+
+        const monthLabel = formatMonthYearFromDateKey(overviewSavingsReminder.target_month);
+        overviewSavingsReminderBannerEl.classList.remove('hidden');
+        overviewSavingsReminderBannerEl.innerHTML = `
+            <div class="card card-glow border-l-4 border-l-amber-400/70 px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                    <p class="min-w-0 text-sm text-foreground">
+                        <span aria-hidden="true">📅</span>
+                        <span class="ml-2">Set your savings goal for ${escapeHtml(monthLabel)} to get personalised AI insights</span>
+                        <a href="/dashboard/ai-insights" class="ml-2 whitespace-nowrap font-semibold text-cyan-300 hover:text-cyan-200">→ Set Goal</a>
+                    </p>
+                    <button
+                        id="dismiss-savings-reminder-btn"
+                        type="button"
+                        class="shrink-0 rounded-md border border-border/70 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                        aria-label="Dismiss savings reminder"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const dismissButton = document.getElementById('dismiss-savings-reminder-btn');
+        dismissButton?.addEventListener('click', async () => {
+            const reminderId = overviewSavingsReminder?.id;
+            overviewSavingsReminder = null;
+            renderOverviewSavingsReminderBanner();
+
+            if (!reminderId || !currentUserId) return;
+            const { error } = await supabase
+                .from('notifications')
+                .update({ shown: true })
+                .eq('id', reminderId)
+                .eq('user_id', currentUserId);
+
+            if (error) {
+                console.error('Failed to dismiss savings reminder', error);
+            }
+        });
+    };
+
+    const renderOverviewAiInsightStrip = () => {
+        if (!overviewAiInsightStripEl) return;
+
+        const baseStripClass = 'card card-glow border-l-4 px-4 py-3';
+
+        if (currentUserPlan !== 'Pro') {
+            overviewAiInsightStripEl.innerHTML = `
+                <div class="${baseStripClass} border-l-slate-500/40 opacity-50">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="min-w-0 truncate text-sm font-medium text-foreground">
+                            <span aria-hidden="true">🔒</span>
+                            <span class="ml-2">AI Insights are available on Pro</span>
+                        </p>
+                        <a href="/#pricing" class="shrink-0 whitespace-nowrap text-sm font-semibold text-cyan-300 hover:text-cyan-200">Upgrade →</a>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        if (!overviewAiSummary) {
+            overviewAiInsightStripEl.innerHTML = `
+                <div class="${baseStripClass} border-l-cyan-400/70">
+                    <p class="min-w-0 truncate text-sm font-medium text-foreground">
+                        <span aria-hidden="true">✨</span>
+                        <span class="ml-2">Your AI insights are being prepared — check back after your first week</span>
+                    </p>
+                </div>
+            `;
+            return;
+        }
+
+        const highlight = escapeHtml(overviewAiSummary.trend_highlight || 'Your latest AI insight is ready.');
+        overviewAiInsightStripEl.innerHTML = `
+            <button
+                id="overview-ai-insight-action"
+                type="button"
+                class="${baseStripClass} w-full cursor-pointer border-l-cyan-400/70 text-left transition-colors hover:border-l-teal-300"
+            >
+                <div class="flex items-center justify-between gap-4">
+                    <p class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                        <span aria-hidden="true">✨</span>
+                        <span class="ml-2">${highlight}</span>
+                    </p>
+                    <span class="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-cyan-300">
+                        <span>${overviewAiCtaText}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </span>
+                </div>
+            </button>
+        `;
+
+        const aiInsightAction = document.getElementById('overview-ai-insight-action');
+        aiInsightAction?.addEventListener('click', () => {
+            window.location.assign('/dashboard/ai-insights');
+        });
+    };
+
+    const renderOverviewAiPanels = () => {
+        renderOverviewSavingsReminderBanner();
+        renderOverviewAiInsightStrip();
+    };
+
+    const fetchLatestSummaryByPeriod = async (periodType) => {
+        const response = await fetch(`/api/summaries?period_type=${periodType}&limit=1`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${periodType} summary (${response.status})`);
+        }
+
+        const payload = await response.json();
+        if (!Array.isArray(payload) || payload.length === 0) {
+            return null;
+        }
+
+        return payload[0];
+    };
+
+    const triggerAiBootstrap = async () => {
+        const response = await fetch('/api/ai/bootstrap', {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error(`AI bootstrap failed (${response.status})`);
+        }
+
+        return response.json();
+    };
+
+    const loadOverviewAiPanelsData = async () => {
+        if (!currentUserId) return;
+
+        overviewAiSummary = null;
+        overviewSavingsReminder = null;
+
+        if (currentUserPlan !== 'Pro') {
+            renderOverviewAiPanels();
+            return;
+        }
+
+        try {
+            let [weeklySummary, monthlySummary] = await Promise.all([
+                fetchLatestSummaryByPeriod('weekly'),
+                fetchLatestSummaryByPeriod('monthly')
+            ]);
+
+            if (!weeklySummary && !monthlySummary && !hasAttemptedOverviewAiBootstrap) {
+                hasAttemptedOverviewAiBootstrap = true;
+                const bootstrapPayload = await triggerAiBootstrap();
+                const weeklyStatus = bootstrapPayload?.weekly?.status;
+                const monthlyStatus = bootstrapPayload?.monthly?.status;
+
+                if (weeklyStatus === 'processed' || monthlyStatus === 'processed') {
+                    [weeklySummary, monthlySummary] = await Promise.all([
+                        fetchLatestSummaryByPeriod('weekly'),
+                        fetchLatestSummaryByPeriod('monthly')
+                    ]);
+                }
+            }
+
+            overviewAiSummary = pickLatestSummary(weeklySummary, monthlySummary);
+        } catch (error) {
+            console.error('Failed to load latest AI summaries', error);
+        }
+
+        try {
+            const { data: notifications, error: notificationsError } = await supabase
+                .from('notifications')
+                .select('id, target_month')
+                .eq('user_id', currentUserId)
+                .eq('reminder_type', 'set_savings_goal')
+                .eq('shown', false)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (notificationsError) {
+                console.error('Failed to load savings reminder notification', notificationsError);
+            } else {
+                overviewSavingsReminder = notifications?.[0] || null;
+            }
+        } catch (error) {
+            console.error('Failed to read savings reminder notification', error);
+        }
+
+        renderOverviewAiPanels();
     };
 
     const showInsufficientFundsModal = (assetName, balance, attempted) => {
@@ -594,6 +868,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         applyDelta(netWorthDeltaEl, netWorth, prevNetWorth);
 
         renderVisibilityToggle();
+        renderOverviewAiPanels();
     };
 
     const renderSettings = () => {
@@ -3039,6 +3314,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         await loadState();
         formDateInput.value = formatDateForInput(new Date());
         render();
+        void loadOverviewAiPanelsData();
         // Resize charts on window resize
         let resizeTimeout;
         window.addEventListener('resize', () => {

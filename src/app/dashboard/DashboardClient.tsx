@@ -9,6 +9,7 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
@@ -23,7 +24,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { getMonthlyPeriods } from "@/lib/cron/time";
 import ExpenseByCategoryGauge from "./analytics/ExpenseByCategoryGauge";
+import AiInsightsClient, { type AiInsightsClientProps } from "@/app/ai-insights/AiInsightsClient";
 
 type BudgetDashboardWindow = Window & {
   __budgetDashboardSetPage?: (page: DashboardPage) => void;
@@ -32,11 +35,20 @@ type BudgetDashboardWindow = Window & {
 type DashboardClientProps = {
   fontClassName?: string;
   initialPage?: DashboardPage;
+  aiInsightsData?: AiInsightsClientProps | null;
 };
 
-const navItems: { id: DashboardPage; label: string; icon: ReactNode }[] = [
+type DashboardNavItem = {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  page?: DashboardPage;
+};
+
+const baseNavItems: DashboardNavItem[] = [
   {
-    id: "tracker",
+    key: "tracker",
+    page: "tracker",
     label: "Overview",
     icon: (
       <svg
@@ -57,7 +69,8 @@ const navItems: { id: DashboardPage; label: string; icon: ReactNode }[] = [
     ),
   },
   {
-    id: "assets",
+    key: "assets",
+    page: "assets",
     label: "Assets",
     icon: (
       <svg
@@ -77,7 +90,8 @@ const navItems: { id: DashboardPage; label: string; icon: ReactNode }[] = [
     ),
   },
   {
-    id: "all-transactions",
+    key: "all-transactions",
+    page: "all-transactions",
     label: "Transactions",
     icon: (
       <svg
@@ -98,7 +112,8 @@ const navItems: { id: DashboardPage; label: string; icon: ReactNode }[] = [
     ),
   },
   {
-    id: "analytics",
+    key: "analytics",
+    page: "analytics",
     label: "Analytics",
     icon: (
       <svg
@@ -120,13 +135,83 @@ const navItems: { id: DashboardPage; label: string; icon: ReactNode }[] = [
   },
 ];
 
+const aiInsightsNavItem: DashboardNavItem = {
+  key: "ai-insights",
+  page: "ai-insights",
+  label: "AI Insights",
+  icon: (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m12 3-1.9 3.9L6 9l4.1 2.1L12 15l1.9-3.9L18 9l-4.1-2.1Z" />
+      <path d="M5 18v.01" />
+      <path d="M19 18v.01" />
+      <path d="M12 20v.01" />
+    </svg>
+  ),
+};
+
 const pageTitles: Record<DashboardPage, string> = {
   tracker: "Overview",
   assets: "Assets",
   "all-transactions": "Transactions",
   analytics: "Analytics",
+  "ai-insights": "AI Insights",
   settings: "Settings",
 };
+
+type SavingsGoalRow = {
+  id: string;
+  month: string;
+  goal_amount: number;
+  was_auto_filled: boolean;
+};
+
+type SavingsReminderNotification = {
+  id: string;
+  target_month: string;
+  reminder_type: string;
+  shown: boolean;
+  created_at?: string | null;
+};
+
+function parseMonthStart(value: string): { year: number; month: number } | null {
+  const match = /^(\d{4})-(\d{2})-01$/.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return null;
+  }
+
+  return { year, month };
+}
+
+function formatMonthLabel(monthStart: string): string {
+  const parsed = parseMonthStart(monthStart);
+  if (!parsed) return monthStart;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(parsed.year, parsed.month - 1, 1)));
+}
+
+function parseGoalInput(input: string): number | null {
+  if (input.trim().length === 0) return null;
+  const value = Number(input);
+  if (!Number.isInteger(value) || value < 0) return null;
+  return value;
+}
 
 type DashboardTheme = "light" | "dark";
 
@@ -206,12 +291,23 @@ function DashboardMarkupContainer({
 export default function DashboardClient({
   fontClassName = "",
   initialPage,
+  aiInsightsData,
 }: DashboardClientProps) {
   const [uiState, dispatch] = useReducer(dashboardUIReducer, initialPage, createInitialUIState);
   const { activePage, chartsReady, markupReady, sidebarCollapsed, theme, searchFocused } =
     uiState;
   const initializedRef = useRef(false);
   const activePageRef = useRef(activePage);
+  const [isProUser, setIsProUser] = useState(false);
+  const [goalReminders, setGoalReminders] = useState<SavingsReminderNotification[]>([]);
+  const [notificationGoalInputs, setNotificationGoalInputs] = useState<Record<string, string>>({});
+  const [activeReminderSaveId, setActiveReminderSaveId] = useState<string | null>(null);
+  const [notificationError, setNotificationError] = useState("");
+  const [showCurrentGoalModal, setShowCurrentGoalModal] = useState(false);
+  const [currentGoalInput, setCurrentGoalInput] = useState("");
+  const [savingCurrentGoal, setSavingCurrentGoal] = useState(false);
+  const [currentGoalError, setCurrentGoalError] = useState("");
+  const monthlyPeriods = useMemo(() => getMonthlyPeriods(), []);
 
   const pageRoutes = useMemo(
     () => ({
@@ -219,6 +315,7 @@ export default function DashboardClient({
       assets: "/dashboard/assets",
       "all-transactions": "/dashboard/transactions",
       analytics: "/dashboard/analytics",
+      "ai-insights": "/dashboard/ai-insights",
       settings: "/dashboard/settings",
     }),
     []
@@ -262,8 +359,174 @@ export default function DashboardClient({
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
 
+  const navItems = useMemo(() => [...baseNavItems, aiInsightsNavItem], []);
+
+  const saveGoalForMonth = useCallback(async (monthStart: string, goalAmount: number) => {
+    const response = await fetch("/api/savings-goal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        month: monthStart,
+        goal_amount: goalAmount,
+      }),
+    });
+
+    const payload = (await response.json()) as SavingsGoalRow | { error?: unknown };
+    if (!response.ok) {
+      const messageValue = (payload as { error?: unknown }).error;
+      throw new Error(
+        typeof messageValue === "string" && messageValue.length > 0
+          ? messageValue
+          : "Could not save savings goal."
+      );
+    }
+
+    return payload as SavingsGoalRow;
+  }, []);
+
+  const markReminderShown = useCallback(async (notificationId: string) => {
+    const supabase = createSupabaseBrowserClient();
+    await supabase
+      .from("notifications")
+      .update({ shown: true })
+      .eq("id", notificationId);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSavingsGoalContext = async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user || !isMounted) return;
+
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("user_plan")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (userError || !isMounted) return;
+
+        const pro = userData?.user_plan === "Pro";
+        setIsProUser(pro);
+
+        if (!pro || !isMounted) {
+          setGoalReminders([]);
+          setShowCurrentGoalModal(false);
+          return;
+        }
+
+        const [currentGoalResponse, remindersResponse] = await Promise.all([
+          supabase
+            .from("monthly_savings_goals")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("month", monthlyPeriods.currentMonthStart)
+            .maybeSingle(),
+          supabase
+            .from("notifications")
+            .select("id, target_month, reminder_type, shown, created_at")
+            .eq("user_id", user.id)
+            .eq("reminder_type", "set_savings_goal")
+            .eq("shown", false)
+            .order("created_at", { ascending: false })
+            .limit(5),
+        ]);
+
+        if (!isMounted) return;
+
+        if (!currentGoalResponse.error) {
+          setShowCurrentGoalModal(currentGoalResponse.data === null);
+        }
+
+        if (!remindersResponse.error) {
+          const reminders = (remindersResponse.data ?? []) as SavingsReminderNotification[];
+          setGoalReminders(reminders);
+          setNotificationGoalInputs((previous) => {
+            const nextInputs = { ...previous };
+            for (const reminder of reminders) {
+              if (typeof nextInputs[reminder.id] !== "string") {
+                nextInputs[reminder.id] = "";
+              }
+            }
+            return nextInputs;
+          });
+        }
+      } catch {
+        if (!isMounted) return;
+        setIsProUser(false);
+        setGoalReminders([]);
+      }
+    };
+
+    void loadSavingsGoalContext();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [monthlyPeriods.currentMonthStart]);
+
+  const handleSaveCurrentMonthGoal = useCallback(async () => {
+    setCurrentGoalError("");
+    const parsedGoal = parseGoalInput(currentGoalInput);
+    if (parsedGoal === null) {
+      setCurrentGoalError("Enter a non-negative whole number.");
+      return;
+    }
+
+    setSavingCurrentGoal(true);
+    try {
+      await saveGoalForMonth(monthlyPeriods.currentMonthStart, parsedGoal);
+      setShowCurrentGoalModal(false);
+      setCurrentGoalInput("");
+    } catch (error) {
+      setCurrentGoalError(error instanceof Error ? error.message : "Could not save savings goal.");
+    } finally {
+      setSavingCurrentGoal(false);
+    }
+  }, [currentGoalInput, monthlyPeriods.currentMonthStart, saveGoalForMonth]);
+
+  const handleSaveReminderGoal = useCallback(
+    async (reminder: SavingsReminderNotification) => {
+      setNotificationError("");
+      const inputValue = notificationGoalInputs[reminder.id] ?? "";
+      const parsedGoal = parseGoalInput(inputValue);
+      if (parsedGoal === null) {
+        setNotificationError("Enter a non-negative whole number before saving.");
+        return;
+      }
+
+      setActiveReminderSaveId(reminder.id);
+      try {
+        await saveGoalForMonth(reminder.target_month, parsedGoal);
+        await markReminderShown(reminder.id);
+
+        setGoalReminders((previous) => previous.filter((item) => item.id !== reminder.id));
+        setNotificationGoalInputs((previous) => {
+          const next = { ...previous };
+          delete next[reminder.id];
+          return next;
+        });
+      } catch (error) {
+        setNotificationError(error instanceof Error ? error.message : "Could not save reminder goal.");
+      } finally {
+        setActiveReminderSaveId(null);
+      }
+    },
+    [markReminderShown, notificationGoalInputs, saveGoalForMonth]
+  );
+
   const handleNavigate = (page: DashboardPage) => {
     if (typeof window === "undefined") return;
+    if (page === "ai-insights" && !aiInsightsData) {
+      window.location.assign(pageRoutes[page]);
+      return;
+    }
     const setPage = (window as BudgetDashboardWindow).__budgetDashboardSetPage;
     if (typeof setPage === "function") {
       setPage(page);
@@ -382,11 +645,15 @@ export default function DashboardClient({
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
             {navItems.map((item) => {
-              const isActive = activePage === item.id;
+              const isActive = item.page ? activePage === item.page : false;
               return (
                 <button
-                  key={item.id}
-                  onClick={() => handleNavigate(item.id)}
+                  key={item.key}
+                  onClick={() => {
+                    if (item.page) {
+                      handleNavigate(item.page);
+                    }
+                  }}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative hover:translate-x-1 active:translate-x-0",
                     isActive
@@ -687,28 +954,99 @@ export default function DashboardClient({
                   </svg>
                 )}
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
-                aria-label="Notifications"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full animate-pulse" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="relative h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+                    aria-label="Notifications"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    {isProUser && goalReminders.length > 0 && (
+                      <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={8} className="w-80 p-2">
+                  <p className="px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Notifications
+                  </p>
+                  <DropdownMenuSeparator />
+                  {!isProUser && (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">
+                      Savings-goal reminders are available for Pro users.
+                    </div>
+                  )}
+                  {isProUser && goalReminders.length === 0 && (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">
+                      No pending savings-goal reminders.
+                    </div>
+                  )}
+                  {isProUser &&
+                    goalReminders.map((reminder) => (
+                      <div
+                        key={reminder.id}
+                        className="mb-2 rounded-lg border border-border/70 bg-card/80 p-2 last:mb-0"
+                      >
+                        <p className="text-xs text-muted-foreground">
+                          Set savings goal for
+                        </p>
+                        <p className="mb-2 text-sm font-semibold text-foreground">
+                          {formatMonthLabel(reminder.target_month)}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={notificationGoalInputs[reminder.id] ?? ""}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setNotificationGoalInputs((previous) => ({
+                                ...previous,
+                                [reminder.id]: nextValue,
+                              }));
+                            }}
+                            className="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-400/25"
+                            placeholder="Goal amount (INR)"
+                          />
+                          <Button
+                            type="button"
+                            className="h-9 px-3 text-xs"
+                            disabled={activeReminderSaveId === reminder.id}
+                            onClick={() => void handleSaveReminderGoal(reminder)}
+                          >
+                            {activeReminderSaveId === reminder.id ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                        <button
+                          type="button"
+                          className="mt-2 text-xs font-medium text-cyan-300 transition hover:text-cyan-200"
+                          onClick={() => handleNavigate("ai-insights")}
+                        >
+                          Open AI Insights
+                        </button>
+                      </div>
+                    ))}
+                  {notificationError && (
+                    <p className="px-2 py-1 text-xs text-rose-400">{notificationError}</p>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
           <main className="flex-1 p-6 overflow-auto">
@@ -717,11 +1055,62 @@ export default function DashboardClient({
                 initialPage={initialPage ?? "tracker"}
                 onReady={handleMarkupReady}
               />
+              {activePage === "ai-insights" && aiInsightsData && (
+                <AiInsightsClient {...aiInsightsData} embeddedInDashboard />
+              )}
             </div>
             {expenseSlot && createPortal(<ExpenseByCategoryGauge />, expenseSlot)}
           </main>
         </div>
       </div>
+
+      {showCurrentGoalModal && isProUser && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-border/70 bg-card/95 p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-foreground">
+              Set your {formatMonthLabel(monthlyPeriods.currentMonthStart)} savings goal
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Add your current-month target so AI insights can guide your progress.
+            </p>
+
+            <div className="mt-4 space-y-2">
+              <label htmlFor="current-month-goal-input" className="text-xs font-medium text-muted-foreground">
+                Goal amount (INR)
+              </label>
+              <input
+                id="current-month-goal-input"
+                type="number"
+                min={0}
+                step={1}
+                value={currentGoalInput}
+                onChange={(event) => setCurrentGoalInput(event.target.value)}
+                className="h-10 w-full rounded-lg border border-border bg-secondary px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-400/25"
+                placeholder="e.g. 12000"
+              />
+            </div>
+
+            {currentGoalError && <p className="mt-2 text-sm text-rose-400">{currentGoalError}</p>}
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowCurrentGoalModal(false)}
+              >
+                Not now
+              </Button>
+              <Button
+                type="button"
+                disabled={savingCurrentGoal}
+                onClick={() => void handleSaveCurrentMonthGoal()}
+              >
+                {savingCurrentGoal ? "Saving..." : "Save goal"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
