@@ -46,6 +46,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 startDate: '',
                 endDate: ''
             },
+            highlightTransactionId: null,
             analytics: {
                 period: 'this-month',
                 year: new Date().getFullYear(),
@@ -323,13 +324,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     
     // All Transactions Page Elements
     const fullTransactionListContainer = document.getElementById('full-transaction-list-container');
-    const searchDescriptionInput = document.getElementById('search-description');
-    const filterTypeSelect = document.getElementById('filter-type');
-    const filterCategorySelect = document.getElementById('filter-category');
-    const filterDateStartInput = document.getElementById('filter-date-start');
-    const filterDateEndInput = document.getElementById('filter-date-end');
-    const resetFiltersBtn = document.getElementById('reset-filters-btn');
-    const eraseDataBtn = document.getElementById('erase-data-btn');
+    const searchDescriptionInputs = Array.from(document.querySelectorAll('#search-description'));
+    const filterTypeSelects = Array.from(document.querySelectorAll('#filter-type'));
+    const filterCategorySelects = Array.from(document.querySelectorAll('#filter-category'));
+    const filterDateStartInputs = Array.from(document.querySelectorAll('#filter-date-start'));
+    const filterDateEndInputs = Array.from(document.querySelectorAll('#filter-date-end'));
+    const resetFiltersBtns = Array.from(document.querySelectorAll('#reset-filters-btn'));
+    const eraseDataBtns = Array.from(document.querySelectorAll('#erase-data-btn'));
 
     // Assets Page Elements
     const assetListEl = document.getElementById('asset-list');
@@ -351,6 +352,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const analyticsPeriodSelect = document.getElementById('analytics-period');
     const analyticsYearSelect = document.getElementById('analytics-year');
     const analyticsMonthSelect = document.getElementById('analytics-month');
+    const analyticsMoreBtn = document.getElementById('analytics-more-btn');
+    const analyticsMorePanel = document.getElementById('analytics-more-panel');
     const analyticsSavingsEl = document.getElementById('analytics-savings');
     const analyticsIncomeEl = document.getElementById('analytics-income');
     const analyticsExpensesEl = document.getElementById('analytics-expenses');
@@ -358,6 +361,176 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const analyticsAverageExpenseEl = document.getElementById('analytics-average-expense');
     const analyticsSavingsRateEl = document.getElementById('analytics-savings-rate');
     const chartTooltip = document.getElementById('chart-tooltip');
+
+    // -------------------------------------------------------------------------
+    // CUSTOM SELECTS (NON-NATIVE DROPDOWN UI)
+    // -------------------------------------------------------------------------
+
+    const customSelects = new WeakMap();
+    let activeCustomSelect = null;
+
+    const closeCustomSelect = () => {
+        if (!activeCustomSelect) return;
+        activeCustomSelect.classList.remove('open');
+        activeCustomSelect = null;
+    };
+
+    const buildCustomSelect = (selectEl) => {
+        if (!selectEl || customSelects.has(selectEl)) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'custom-select';
+        selectEl.parentNode?.insertBefore(wrapper, selectEl);
+        wrapper.appendChild(selectEl);
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = `${selectEl.className} custom-select-trigger`;
+        trigger.innerHTML = `
+            <span class="custom-select-label"></span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        `;
+
+        const menu = document.createElement('div');
+        menu.className = 'custom-select-menu';
+        menu.setAttribute('role', 'listbox');
+
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(menu);
+
+        const labelEl = trigger.querySelector('.custom-select-label');
+
+        const syncOptions = () => {
+            const options = Array.from(selectEl.options);
+            menu.innerHTML = '';
+            options.forEach((option) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option';
+                item.textContent = option.textContent || option.value;
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+                if (option.disabled) {
+                    item.disabled = true;
+                    item.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                item.addEventListener('click', () => {
+                    if (option.disabled) return;
+                    selectEl.value = option.value;
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    syncLabel();
+                    closeCustomSelect();
+                });
+                menu.appendChild(item);
+            });
+            syncLabel();
+        };
+
+        const syncLabel = () => {
+            const selectedOption = selectEl.options[selectEl.selectedIndex];
+            if (labelEl) {
+                labelEl.textContent = selectedOption?.textContent || selectedOption?.value || '';
+            }
+            menu.querySelectorAll('.custom-select-option').forEach((item, index) => {
+                const option = selectEl.options[index];
+                item.setAttribute('aria-selected', option?.selected ? 'true' : 'false');
+            });
+        };
+
+        const openSelect = () => {
+            if (activeCustomSelect && activeCustomSelect !== wrapper) {
+                closeCustomSelect();
+            }
+            wrapper.classList.add('open');
+            activeCustomSelect = wrapper;
+        };
+
+        trigger.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (wrapper.classList.contains('open')) {
+                closeCustomSelect();
+            } else {
+                openSelect();
+            }
+        });
+
+        const label = selectEl.id ? document.querySelector(`label[for="${selectEl.id}"]`) : null;
+        if (label) {
+            label.addEventListener('click', (event) => {
+                event.preventDefault();
+                trigger.focus();
+                openSelect();
+            });
+        }
+
+        selectEl.className = 'custom-select-native';
+
+        const observer = new MutationObserver(() => {
+            syncOptions();
+        });
+        observer.observe(selectEl, { childList: true, subtree: true, attributes: true });
+
+        selectEl.addEventListener('change', syncLabel);
+
+        syncOptions();
+
+        customSelects.set(selectEl, { wrapper, trigger, menu, observer, syncOptions });
+    };
+
+    const shouldUseCustomSelects = () => window.matchMedia('(max-width: 767px)').matches;
+
+    const enhanceAllSelects = () => {
+        if (!shouldUseCustomSelects()) return;
+        const selects = document.querySelectorAll('.budget-dashboard select');
+        selects.forEach((selectEl) => buildCustomSelect(selectEl));
+    };
+
+    document.addEventListener('click', () => {
+        closeCustomSelect();
+    });
+
+    enhanceAllSelects();
+
+    if (analyticsMoreBtn && analyticsMorePanel) {
+        const openPanelClasses = ['opacity-100', 'pointer-events-auto', 'translate-y-0'];
+        const closedPanelClasses = ['opacity-0', 'pointer-events-none', 'translate-y-1'];
+
+        const closeAnalyticsPanel = () => {
+            analyticsMoreBtn.setAttribute('aria-expanded', 'false');
+            analyticsMorePanel.classList.remove(...openPanelClasses);
+            analyticsMorePanel.classList.add(...closedPanelClasses);
+        };
+
+        analyticsMoreBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpen = analyticsMoreBtn.getAttribute('aria-expanded') === 'true';
+            if (!isOpen) {
+                analyticsMoreBtn.setAttribute('aria-expanded', 'true');
+                analyticsMorePanel.classList.remove(...closedPanelClasses);
+                analyticsMorePanel.classList.add(...openPanelClasses);
+            } else {
+                closeAnalyticsPanel();
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!(event.target instanceof Node)) return;
+            if (analyticsMoreBtn.getAttribute('aria-expanded') !== 'true') return;
+            if (analyticsMorePanel.contains(event.target) || analyticsMoreBtn.contains(event.target)) return;
+            closeAnalyticsPanel();
+        });
+
+        [analyticsYearSelect, analyticsMonthSelect].forEach((select) => {
+            if (!select) return;
+            select.addEventListener('change', () => {
+                if (window.innerWidth < 640) {
+                    closeAnalyticsPanel();
+                }
+            });
+        });
+    }
 
     const attachDatePickerOpenOnFieldClick = (inputEl) => {
         if (!inputEl) return;
@@ -376,7 +549,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         });
     };
 
-    [formDateInput, filterDateStartInput, filterDateEndInput].forEach(attachDatePickerOpenOnFieldClick);
+    [formDateInput, ...filterDateStartInputs, ...filterDateEndInputs].forEach(attachDatePickerOpenOnFieldClick);
 
     // -------------------------------------------------------------------------
     // UTILITY FUNCTIONS
@@ -858,6 +1031,15 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return timeB - timeA;
         });
 
+        if (container.id === 'full-transaction-list-container' && state.ui.highlightTransactionId) {
+            const highlightIndex = sortedTransactions.findIndex(t => t.id === state.ui.highlightTransactionId);
+            if (highlightIndex > -1) {
+                const [highlighted] = sortedTransactions.splice(highlightIndex, 1);
+                sortedTransactions.unshift(highlighted);
+                state.ui.highlightTransactionId = null;
+            }
+        }
+
         const transactionsToDisplay = (container.id === 'transaction-list-container') ? sortedTransactions.slice(0, 10) : sortedTransactions;
 
 
@@ -868,38 +1050,41 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const assetName = state.assets.find(a => a.id === t.assetId)?.name || 'Unknown';
 
                                     const li = document.createElement('div');
-            li.className = 'transaction-item group rounded-xl border border-border/60 bg-card/60 p-4 transition-all duration-200 hover:border-accent/40 hover:bg-card/80';
+            li.className = 'transaction-item group rounded-xl border border-border/60 bg-card/60 p-3 sm:p-4 transition-all duration-200 hover:border-accent/40 hover:bg-card/80';
             li.innerHTML = `
                 <div class="flex flex-col gap-3">
-                    <div class="flex items-start gap-4">
-                        <div class="h-11 w-11 rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
+                    <div class="flex items-start gap-3 sm:gap-4">
+                        <div class="h-10 w-10 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
                             ${isIncome ? 
-                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
-                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
+                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
+                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
                             }
                         </div>
                         <div class="flex-1">
-                            <div class="flex flex-col gap-2 md:grid md:grid-cols-12 md:items-center md:gap-3">
-                                <div class="md:col-span-5">
-                                    <p class="text-sm text-muted-foreground">${t.category} &bull; ${assetName}</p>
-                                    <p class="text-base font-semibold text-foreground">${t.description}</p>
+                            <div class="flex items-start justify-between gap-3 md:grid md:grid-cols-12 md:items-center md:gap-3">
+                                <div class="md:col-span-5 flex-1">
+                                    <p class="text-xs sm:text-sm text-muted-foreground">${t.category} &bull; ${assetName}</p>
+                                    <p class="text-sm sm:text-base font-semibold text-foreground">${t.description}</p>
+                                    <div class="mt-1 text-[0.7rem] sm:text-xs text-muted-foreground md:hidden">${formatDateForDisplay(t.date)}</div>
                                 </div>
-                                <div class="md:col-span-3 text-xs text-muted-foreground md:text-center">${formatDateForDisplay(t.date)}</div>
-                                <div class="md:col-span-4 flex items-center justify-between md:justify-end gap-2">
-                                    <p class="font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
-                                    ${t.note ? `
-                                        <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                                        </button>
-                                    ` : '<div class="w-7"></div>'}
-                                    <div class="relative transaction-actions">
+                                <div class="hidden md:block md:col-span-3 text-[0.7rem] sm:text-xs text-muted-foreground md:text-center">${formatDateForDisplay(t.date)}</div>
+                                <div class="md:col-span-4 flex flex-col items-end gap-2 md:flex-row md:items-center md:justify-end md:gap-2">
+                                    <div class="order-1 md:order-3 relative transaction-actions">
                                         <button class="more-btn p-1 text-muted-foreground hover:text-foreground" aria-label="More actions">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
                                         </button>
                                         <div class="transaction-actions-menu hidden absolute right-0 mt-2 w-28 rounded-md border border-border bg-card shadow-lg z-20">
                                             <button data-id="${t.id}" class="edit-btn w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40">Edit</button>
                                             <button data-id="${t.id}" class="delete-btn w-full text-left px-3 py-2 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">Delete</button>
                                         </div>
+                                    </div>
+                                    <div class="order-2 md:order-1 flex items-center gap-2">
+                                        <p class="text-sm sm:text-base font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
+                                        ${t.note ? `
+                                            <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                                            </button>
+                                        ` : '<div class="w-6 sm:w-7"></div>'}
                                     </div>
                                 </div>
                             </div>
@@ -1071,22 +1256,36 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // -------------------------------------------------------------------------
     
     const renderFilters = () => {
-        // Populate category dropdown
+        // Populate category dropdowns
         const allCategories = [...new Set(['Internal Transfer', ...state.incomeCategories, ...state.expenseCategories.map(c => c.name)])];
-        filterCategorySelect.innerHTML = '<option value="all">All Categories</option>';
-        allCategories.sort().forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat;
-            option.textContent = cat;
-            filterCategorySelect.appendChild(option);
+        const sortedCategories = allCategories.sort();
+        filterCategorySelects.forEach((selectEl) => {
+            if (!selectEl) return;
+            selectEl.innerHTML = '<option value="all">All Categories</option>';
+            sortedCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                selectEl.appendChild(option);
+            });
         });
 
         // Set values from state
-        searchDescriptionInput.value = state.ui.filters.description;
-        filterTypeSelect.value = state.ui.filters.type;
-        filterCategorySelect.value = state.ui.filters.category;
-        filterDateStartInput.value = state.ui.filters.startDate;
-        filterDateEndInput.value = state.ui.filters.endDate;
+        searchDescriptionInputs.forEach((input) => {
+            if (input) input.value = state.ui.filters.description;
+        });
+        filterTypeSelects.forEach((selectEl) => {
+            if (selectEl) selectEl.value = state.ui.filters.type;
+        });
+        filterCategorySelects.forEach((selectEl) => {
+            if (selectEl) selectEl.value = state.ui.filters.category;
+        });
+        filterDateStartInputs.forEach((input) => {
+            if (input) input.value = state.ui.filters.startDate;
+        });
+        filterDateEndInputs.forEach((input) => {
+            if (input) input.value = state.ui.filters.endDate;
+        });
     };
 
     const renderAllTransactionsPage = () => {
@@ -1116,33 +1315,51 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         renderTransactionList(filtered, fullTransactionListContainer, document.createElement('div'));
     };
     
-    searchDescriptionInput.addEventListener('input', () => {
-        state.ui.filters.description = searchDescriptionInput.value;
-        renderAllTransactionsPage();
-    });
-
-    [filterTypeSelect, filterCategorySelect, filterDateStartInput, filterDateEndInput].forEach(el => {
-        el.addEventListener('change', () => {
-            state.ui.filters.type = filterTypeSelect.value;
-            state.ui.filters.category = filterCategorySelect.value;
-            state.ui.filters.startDate = filterDateStartInput.value;
-            state.ui.filters.endDate = filterDateEndInput.value;
+    searchDescriptionInputs.forEach((input) => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+            state.ui.filters.description = input.value;
             renderAllTransactionsPage();
         });
     });
-    
-    resetFiltersBtn.addEventListener('click', () => {
-        state.ui.filters = {
-            description: '',
-            type: 'all',
-            category: 'all',
-            startDate: '',
-            endDate: ''
-        };
+
+    const handleFilterChange = (event) => {
+        const target = event?.target;
+        if (!target) return;
+        if (target.id === 'filter-type') {
+            state.ui.filters.type = target.value;
+        } else if (target.id === 'filter-category') {
+            state.ui.filters.category = target.value;
+        } else if (target.id === 'filter-date-start') {
+            state.ui.filters.startDate = target.value;
+        } else if (target.id === 'filter-date-end') {
+            state.ui.filters.endDate = target.value;
+        }
         renderAllTransactionsPage();
+    };
+
+    [...filterTypeSelects, ...filterCategorySelects, ...filterDateStartInputs, ...filterDateEndInputs].forEach(el => {
+        if (!el) return;
+        el.addEventListener('change', handleFilterChange);
+    });
+    
+    resetFiltersBtns.forEach((btn) => {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            state.ui.filters = {
+                description: '',
+                type: 'all',
+                category: 'all',
+                startDate: '',
+                endDate: ''
+            };
+            renderAllTransactionsPage();
+        });
     });
 
-    eraseDataBtn.addEventListener('click', () => {
+    eraseDataBtns.forEach((btn) => {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
         const today = new Date();
         const expectedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
         const expectedPhrase = 'I want to delete all my data';
@@ -1226,6 +1443,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             await loadState();
             closeModal();
             render();
+        });
         });
     });
 
@@ -1569,6 +1787,126 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     if (viewAllTransactionsBtn) {
         viewAllTransactionsBtn.addEventListener('click', () => setPage('all-transactions'));
+    }
+
+    // -------------------------------------------------------------------------
+    // HEADER SEARCH (Transactions)
+    // -------------------------------------------------------------------------
+
+    const transactionSearchInput = document.getElementById('transaction-search-input');
+    const transactionSearchDropdown = document.getElementById('transaction-search-dropdown');
+    const transactionSearchWrapper = transactionSearchDropdown?.parentElement;
+
+    const clearTransactionSearchDropdown = () => {
+        if (!transactionSearchDropdown) return;
+        transactionSearchDropdown.innerHTML = '';
+        transactionSearchDropdown.classList.add('hidden');
+    };
+
+    const renderTransactionSearchResults = (query) => {
+        if (!transactionSearchDropdown) return;
+        const normalizedQuery = query.toLowerCase();
+        const matches = state.transactions.filter(t =>
+            String(t.description || '').toLowerCase().includes(normalizedQuery)
+        );
+        const sortedMatches = [...matches].sort((a, b) => {
+            const dateComparison = new Date(b.date) - new Date(a.date);
+            if (dateComparison !== 0) {
+                return dateComparison;
+            }
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            return timeB - timeA;
+        });
+        const results = sortedMatches.slice(0, 5);
+
+        transactionSearchDropdown.innerHTML = '';
+
+        if (results.length === 0) {
+            transactionSearchDropdown.classList.add('hidden');
+            return;
+        }
+
+        results.forEach(t => {
+            const isIncome = t.type === 'income';
+            const sign = isIncome ? '+' : '-';
+            const amountClass = isIncome ? 'text-sky-400' : 'text-rose-400';
+            const assetName = state.assets.find(a => a.id === t.assetId)?.name || 'Unknown';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/40';
+            button.innerHTML = `
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-foreground truncate">${t.description}</p>
+                        <p class="text-xs text-muted-foreground truncate">${t.category} &bull; ${assetName}</p>
+                    </div>
+                    <div class="shrink-0 text-right">
+                        <p class="text-sm font-semibold ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}` : '******'}</p>
+                        <p class="text-xs text-muted-foreground">${formatDateForDisplay(t.date)}</p>
+                    </div>
+                </div>
+            `;
+            button.addEventListener('mousedown', e => e.preventDefault());
+            button.addEventListener('click', () => {
+                state.ui.highlightTransactionId = t.id;
+                state.ui.filters = {
+                    description: '',
+                    type: 'all',
+                    category: 'all',
+                    startDate: '',
+                    endDate: ''
+                };
+                if (typeof setPage === 'function') {
+                    setPage('all-transactions');
+                } else {
+                    window.location.assign(pageRoutes['all-transactions']);
+                }
+                requestAnimationFrame(() => {
+                    if (fullTransactionListContainer) {
+                        fullTransactionListContainer.scrollTop = 0;
+                    }
+                });
+                clearTransactionSearchDropdown();
+            });
+            transactionSearchDropdown.appendChild(button);
+        });
+
+        transactionSearchDropdown.classList.remove('hidden');
+    };
+
+    if (transactionSearchInput && transactionSearchDropdown) {
+        transactionSearchInput.addEventListener('input', () => {
+            const query = transactionSearchInput.value.trim();
+            if (!query) {
+                clearTransactionSearchDropdown();
+                return;
+            }
+            renderTransactionSearchResults(query);
+        });
+
+        transactionSearchInput.addEventListener('focus', () => {
+            const query = transactionSearchInput.value.trim();
+            if (query) {
+                renderTransactionSearchResults(query);
+            }
+        });
+
+        transactionSearchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                clearTransactionSearchDropdown();
+                transactionSearchInput.blur();
+            }
+        });
+
+        transactionSearchDropdown.addEventListener('mousedown', e => e.preventDefault());
+
+        document.addEventListener('click', (e) => {
+            if (!transactionSearchWrapper) return;
+            if (!transactionSearchWrapper.contains(e.target)) {
+                clearTransactionSearchDropdown();
+            }
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -2543,6 +2881,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         const transferToSelect = document.getElementById('transfer-to');
         transferFromSelect.innerHTML = state.assets.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
         transferToSelect.innerHTML = state.assets.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+        const bankAsset = state.assets.find(asset => normalizeAssetName(asset.name) === 'bank');
+        const cashAsset = state.assets.find(asset => normalizeAssetName(asset.name) === 'cash');
+        if (bankAsset && cashAsset) {
+            transferFromSelect.value = bankAsset.id;
+            transferToSelect.value = cashAsset.id;
+        }
         
         renderAssetPieChart();
     };
@@ -2746,16 +3090,17 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 <ul id="manage-asset-list" class="space-y-2 mb-4">
                     ${state.assets.map(asset => {
                         const isProtected = isProtectedAssetName(asset.name);
-                        const disabledClass = isProtected ? ' opacity-40 cursor-not-allowed pointer-events-none' : '';
-                        const disabledAttrs = isProtected ? ' disabled aria-disabled="true" title="Bank and Cash are permanent assets."' : '';
+                        const deleteDisabledClass = isProtected ? ' opacity-40 cursor-not-allowed pointer-events-none' : '';
+                        const deleteDisabledAttrs = isProtected ? ' disabled aria-disabled="true" title="Bank and Cash are permanent assets and cannot be deleted."' : '';
+                        const renameTitle = isProtected ? ' title="Cash and Bank names are locked. You can still edit the balance."' : '';
                         return `
                         <li class="asset-item flex justify-between items-center p-2 bg-muted/60 rounded" data-id="${asset.id}" data-name="${asset.name}">
                              <span class="asset-name">${asset.name}</span>
                              <div class="asset-actions flex items-center space-x-2">
-                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full${disabledClass}"${disabledAttrs}>
+                                 <button class="rename-asset-btn text-muted-foreground hover:text-accent p-1 rounded-full"${renameTitle}>
                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                                  </button>
-                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none${disabledClass}"${disabledAttrs}>&times;</button>
+                                 <button class="delete-asset-btn text-muted-foreground hover:text-red-600 p-1 rounded-full text-lg font-bold leading-none${deleteDisabledClass}"${deleteDisabledAttrs}>&times;</button>
                              </div>
                         </li>
                     `;
@@ -2823,10 +3168,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
              const assetNameSpan = listItem.querySelector('.asset-name');
              const assetActions = listItem.querySelector('.asset-actions');
              const oldName = listItem.dataset.name;
-             if (isProtectedAssetName(oldName)) {
-                 showProtectedAssetModal();
-                 return;
-             }
+             const isProtected = isProtectedAssetName(oldName);
              const assetId = listItem.dataset.id;
              const asset = state.assets.find(a => a.id === assetId);
              if (!asset) return;
@@ -2836,7 +3178,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
              const editContainer = document.createElement('div');
              editContainer.className = 'flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 items-center';
              editContainer.innerHTML = `
-                <input type="text" class="asset-name-input block w-full rounded-md border-border shadow-sm sm:text-sm" value="${oldName}">
+                <input type="text" class="asset-name-input block w-full rounded-md border-border shadow-sm sm:text-sm" value="${oldName}"${isProtected ? ' disabled aria-disabled="true" title="Cash and Bank names are locked."' : ''}>
                 <div class="relative">
                      <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-muted-foreground sm:text-sm">₹</span></div>
                      <input type="number" step="0.01" class="asset-balance-input block w-full rounded-md border-border shadow-sm sm:text-sm pl-7" value="${asset.balance}">
@@ -2847,7 +3189,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                  </div>
             `;
              listItem.prepend(editContainer);
-             editContainer.querySelector('input').focus();
+             const inputToFocus = editContainer.querySelector(isProtected ? '.asset-balance-input' : '.asset-name-input');
+             if (inputToFocus) inputToFocus.focus();
         }
 
         const saveRenameBtn = e.target.closest('.save-rename-asset-btn');
@@ -2859,12 +3202,11 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const newBalance = parseFloat(balanceInput.value);
             const assetId = listItem.dataset.id;
             const oldName = listItem.dataset.name;
+            const isProtected = isProtectedAssetName(oldName);
+            const isRenamingProtectedAsset = isProtected && normalizeAssetName(newName) !== normalizeAssetName(oldName);
+            const isClaimingProtectedName = !isProtected && isProtectedAssetName(newName);
 
-            if (isProtectedAssetName(oldName)) {
-                showProtectedAssetModal();
-                return;
-            }
-            if (isProtectedAssetName(newName)) {
+            if (isRenamingProtectedAsset || isClaimingProtectedName) {
                 showProtectedAssetModal();
                 return;
             }
@@ -2874,10 +3216,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 return;
             }
 
-            if (newName && !isNaN(newBalance)) {
+            if ((isProtected || newName) && !isNaN(newBalance)) {
+                const updatePayload = isProtected
+                    ? { balance: newBalance }
+                    : { name: newName, balance: newBalance };
                 const { error } = await supabase
                     .from('assets')
-                    .update({ name: newName, balance: newBalance })
+                    .update(updatePayload)
                     .eq('id', assetId);
                 if (error) {
                     console.error('Failed to update asset', error);

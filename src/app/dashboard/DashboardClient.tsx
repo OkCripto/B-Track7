@@ -2,7 +2,14 @@
 
 import Script from "next/script";
 import Image from "next/image";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
@@ -17,6 +24,10 @@ import {
 import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import ExpenseByCategoryGauge from "./analytics/ExpenseByCategoryGauge";
+
+type BudgetDashboardWindow = Window & {
+  __budgetDashboardSetPage?: (page: DashboardPage) => void;
+};
 
 type DashboardClientProps = {
   fontClassName?: string;
@@ -117,18 +128,104 @@ const pageTitles: Record<DashboardPage, string> = {
   settings: "Settings",
 };
 
+type DashboardTheme = "light" | "dark";
+
+type DashboardUIState = {
+  activePage: DashboardPage;
+  chartsReady: boolean;
+  markupReady: boolean;
+  sidebarCollapsed: boolean;
+  mobileNavOpen: boolean;
+  theme: DashboardTheme;
+  searchFocused: boolean;
+};
+
+type DashboardUIAction =
+  | { type: "setActivePage"; value: DashboardPage }
+  | { type: "setChartsReady"; value: boolean }
+  | { type: "setMarkupReady"; value: boolean }
+  | { type: "toggleSidebar" }
+  | { type: "setMobileNavOpen"; value: boolean }
+  | { type: "toggleMobileNav" }
+  | { type: "setTheme"; value: DashboardTheme }
+  | { type: "setSearchFocused"; value: boolean };
+
+const createInitialUIState = (initialPage?: DashboardPage): DashboardUIState => ({
+  activePage: initialPage ?? "tracker",
+  chartsReady: false,
+  markupReady: false,
+  sidebarCollapsed: false,
+  mobileNavOpen: false,
+  theme: "dark",
+  searchFocused: false,
+});
+
+const dashboardUIReducer = (
+  state: DashboardUIState,
+  action: DashboardUIAction
+): DashboardUIState => {
+  switch (action.type) {
+    case "setActivePage":
+      return { ...state, activePage: action.value };
+    case "setChartsReady":
+      return { ...state, chartsReady: action.value };
+    case "setMarkupReady":
+      return { ...state, markupReady: action.value };
+    case "toggleSidebar":
+      return { ...state, sidebarCollapsed: !state.sidebarCollapsed };
+    case "setMobileNavOpen":
+      return { ...state, mobileNavOpen: action.value };
+    case "toggleMobileNav":
+      return { ...state, mobileNavOpen: !state.mobileNavOpen };
+    case "setTheme":
+      return { ...state, theme: action.value };
+    case "setSearchFocused":
+      return { ...state, searchFocused: action.value };
+    default:
+      return state;
+  }
+};
+
+type DashboardMarkupContainerProps = {
+  initialPage: DashboardPage;
+  onReady: () => void;
+};
+
+function DashboardMarkupContainer({
+  initialPage,
+  onReady,
+}: DashboardMarkupContainerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const markupHtml = useMemo(() => dashboardMarkup(initialPage), [initialPage]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const template = document.createElement("template");
+    template.innerHTML = markupHtml;
+    container.replaceChildren(template.content.cloneNode(true));
+    onReady();
+  }, [markupHtml, onReady]);
+
+  return <div ref={containerRef} />;
+}
+
 export default function DashboardClient({
   fontClassName = "",
   initialPage,
 }: DashboardClientProps) {
-  const [chartsReady, setChartsReady] = useState(false);
-  const [activePage, setActivePage] = useState<DashboardPage>(
-    initialPage ?? "tracker"
-  );
-  const [expenseSlot, setExpenseSlot] = useState<HTMLElement | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [uiState, dispatch] = useReducer(dashboardUIReducer, initialPage, createInitialUIState);
+  const {
+    activePage,
+    chartsReady,
+    markupReady,
+    sidebarCollapsed,
+    mobileNavOpen,
+    theme,
+    searchFocused,
+  } =
+    uiState;
   const initializedRef = useRef(false);
   const activePageRef = useRef(activePage);
 
@@ -143,16 +240,15 @@ export default function DashboardClient({
     []
   );
 
-  const markup = useMemo(
-    () => ({ __html: dashboardMarkup(initialPage ?? "tracker") }),
-    [initialPage]
-  );
+  const handleMarkupReady = useCallback(() => {
+    dispatch({ type: "setMarkupReady", value: true });
+  }, []);
 
   useEffect(() => {
-    if (!chartsReady || initializedRef.current) return;
+    if (!chartsReady || !markupReady || initializedRef.current) return;
     initializedRef.current = true;
     initBudgetDashboard({ initialPage });
-  }, [chartsReady, initialPage]);
+  }, [chartsReady, markupReady, initialPage]);
 
   useEffect(() => {
     activePageRef.current = activePage;
@@ -163,7 +259,7 @@ export default function DashboardClient({
     const handlePageChange = (event: Event) => {
       const detail = (event as CustomEvent<{ page?: DashboardPage }>).detail;
       if (!detail?.page || detail.page === activePageRef.current) return;
-      setActivePage(detail.page);
+      dispatch({ type: "setActivePage", value: detail.page });
     };
     window.addEventListener("budget:page-change", handlePageChange as EventListener);
     return () => {
@@ -178,53 +274,229 @@ export default function DashboardClient({
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem("theme");
     const initial = stored === "light" || stored === "dark" ? stored : "dark";
-    setTheme(initial);
+    dispatch({ type: "setTheme", value: initial });
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const node = document.getElementById("expense-by-category-slot");
-    setExpenseSlot(node);
-  }, [chartsReady]);
+    if (typeof document === "undefined") return;
+    if (!mobileNavOpen) return;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, [mobileNavOpen]);
 
   const handleNavigate = (page: DashboardPage) => {
+    dispatch({ type: "setMobileNavOpen", value: false });
     if (typeof window === "undefined") return;
-    const setPage = (window as Window & { __budgetDashboardSetPage?: Function })
-      .__budgetDashboardSetPage;
+    const setPage = (window as BudgetDashboardWindow).__budgetDashboardSetPage;
     if (typeof setPage === "function") {
       setPage(page);
       return;
     }
-    window.location.href = pageRoutes[page];
+    window.location.assign(pageRoutes[page]);
   };
 
   const handleSignOut = async () => {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    window.location.assign("/login");
   };
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
+    dispatch({ type: "setTheme", value: nextTheme });
     if (typeof window !== "undefined") {
       window.localStorage.setItem("theme", nextTheme);
       document.documentElement.classList.toggle("dark", nextTheme === "dark");
     }
   };
 
+  const logoSrc = theme === "dark" ? "/logo.svg" : "/logo-w.svg";
+
+  const expenseSlot =
+    typeof document === "undefined"
+      ? null
+      : document.getElementById("expense-by-category-slot");
+
   return (
     <div className={cn("budget-dashboard min-h-screen", fontClassName)}>
       <Script
         src="https://cdn.jsdelivr.net/npm/chart.js"
         strategy="afterInteractive"
-        onLoad={() => setChartsReady(true)}
+        onLoad={() => dispatch({ type: "setChartsReady", value: true })}
       />
       <div className="flex min-h-screen text-foreground">
+        <div
+          className={cn(
+            "fixed inset-0 z-40 md:hidden transition-opacity duration-200",
+            mobileNavOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          )}
+          aria-hidden={!mobileNavOpen}
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70"
+            aria-label="Close navigation"
+            onClick={() => dispatch({ type: "setMobileNavOpen", value: false })}
+          />
+          <aside
+            className={cn(
+              "absolute left-0 top-0 h-full w-[clamp(220px,25vw,320px)] bg-sidebar/95 text-sidebar-foreground shadow-2xl backdrop-blur transition-transform duration-300 ease-out",
+              mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+            )}
+          >
+            <nav className="flex h-full flex-col px-3 py-6">
+              <div className="mb-6 flex items-center justify-between px-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-sidebar-foreground/50">
+                  Menu
+                </span>
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: "setMobileNavOpen", value: false })}
+                  aria-label="Close navigation"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sidebar-border/60 text-sidebar-foreground/70 transition hover:text-sidebar-foreground"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M6 6l12 12" />
+                    <path d="M6 18L18 6" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-1">
+                {navItems.map((item) => {
+                  const isActive = activePage === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNavigate(item.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                        isActive
+                          ? "bg-sidebar-accent text-sidebar-foreground"
+                          : "text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "transition-colors duration-200",
+                          isActive ? "text-accent" : "text-muted-foreground"
+                        )}
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-auto pt-4">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                        "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                      )}
+                      aria-label="My account"
+                    >
+                      <span className="w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="w-5 h-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 21a8 8 0 0 0-16 0" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                      </span>
+                      <span className="flex-1 text-left whitespace-nowrap">My Account</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-4 h-4 text-muted-foreground"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start" sideOffset={12} className="w-52">
+                    <DropdownMenuItem
+                      onClick={() => handleNavigate("settings")}
+                      className="cursor-pointer gap-2"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-4 h-4 text-muted-foreground"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12 2v2" />
+                        <path d="M12 20v2" />
+                        <path d="m4.93 4.93 1.41 1.41" />
+                        <path d="m17.66 17.66 1.41 1.41" />
+                        <path d="M2 12h2" />
+                        <path d="M20 12h2" />
+                        <path d="m4.93 19.07 1.41-1.41" />
+                        <path d="m17.66 6.34 1.41-1.41" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleSignOut}
+                      className="cursor-pointer gap-2"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-4 h-4 text-muted-foreground"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </nav>
+          </aside>
+        </div>
         <aside
           className={cn(
-            "fixed left-0 top-0 z-40 h-screen border-r border-sidebar-border bg-sidebar/90 backdrop-blur flex flex-col transition-all duration-300 ease-out",
+            "fixed left-0 top-0 z-40 hidden h-screen border-r border-sidebar-border bg-sidebar/90 backdrop-blur md:flex flex-col transition-all duration-300 ease-out",
             sidebarCollapsed ? "w-[72px]" : "w-[260px]"
           )}
         >
@@ -247,7 +519,7 @@ export default function DashboardClient({
                 )}
               >
                 <Image
-                  src="/logo.svg"
+                  src={logoSrc}
                   alt="B-Track7"
                   width={32}
                   height={32}
@@ -264,7 +536,7 @@ export default function DashboardClient({
               </span>
             </div>
             <button
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              onClick={() => dispatch({ type: "toggleSidebar" })}
               className={cn(
                 "ml-auto rounded-lg flex items-center justify-center text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200",
                 sidebarCollapsed ? "h-8 w-8" : "h-9 w-9"
@@ -447,37 +719,68 @@ export default function DashboardClient({
         <div
           className={cn(
             "flex min-h-screen flex-1 flex-col transition-all duration-300 ease-out",
-            sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"
+            "ml-0",
+            sidebarCollapsed ? "md:ml-[72px]" : "md:ml-[260px]"
           )}
         >
-          <header className="h-16 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-30 flex items-center justify-between px-6">
+          <header className="h-16 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-50 flex items-center justify-between px-4 md:px-6">
             <div className="flex items-center gap-6">
-              <h1 className="text-xl font-semibold text-foreground">
-                {pageTitles[activePage]}
-              </h1>
-              <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <div className="flex items-center gap-3 md:hidden">
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: "toggleMobileNav" })}
+                  aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+                  aria-expanded={mobileNavOpen}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:text-foreground"
                 >
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-                <span>This month</span>
+                  <span className="relative block h-4 w-4">
+                    <span
+                      className={cn(
+                        "absolute left-1/2 top-1/2 h-0.5 w-4 -translate-x-1/2 -translate-y-[5px] rounded-full bg-current transition-transform duration-300",
+                        mobileNavOpen ? "translate-y-0 rotate-45" : ""
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "absolute left-1/2 top-1/2 h-0.5 w-4 -translate-x-1/2 translate-y-[5px] rounded-full bg-current transition-transform duration-300",
+                        mobileNavOpen ? "translate-y-0 -rotate-45" : ""
+                      )}
+                    />
+                  </span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <Image src={logoSrc} alt="B-Track7" width={24} height={24} className="h-6 w-6" />
+                  <span className="text-sm font-semibold text-foreground">B-Track7</span>
+                </div>
+              </div>
+              <div className="hidden md:flex items-center gap-6">
+                <h1 className="text-xl font-semibold text-foreground">
+                  {pageTitles[activePage]}
+                </h1>
+                <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <span>This month</span>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <div
                 className={cn(
-                  "relative flex items-center transition-all duration-300",
+                  "relative hidden md:flex items-center transition-all duration-300",
                   searchFocused ? "w-64" : "w-44"
                 )}
               >
@@ -495,11 +798,17 @@ export default function DashboardClient({
                   <path d="m21 21-4.3-4.3" />
                 </svg>
                 <input
+                  id="transaction-search-input"
                   type="text"
                   placeholder="Search..."
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
+                  autoComplete="off"
+                  onFocus={() => dispatch({ type: "setSearchFocused", value: true })}
+                  onBlur={() => dispatch({ type: "setSearchFocused", value: false })}
                   className="w-full h-9 pl-9 pr-4 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-accent transition-all duration-200"
+                />
+                <div
+                  id="transaction-search-dropdown"
+                  className="absolute left-0 right-0 top-full z-40 mt-2 hidden max-h-72 overflow-auto rounded-xl border border-border/60 bg-card/95 p-1 shadow-xl backdrop-blur"
                 />
               </div>
               <Button
@@ -627,7 +936,10 @@ export default function DashboardClient({
           </header>
           <main className="flex-1 p-6 overflow-auto">
             <div className="content-animate">
-              <div dangerouslySetInnerHTML={markup} />
+              <DashboardMarkupContainer
+                initialPage={initialPage ?? "tracker"}
+                onReady={handleMarkupReady}
+              />
             </div>
             {expenseSlot && createPortal(<ExpenseByCategoryGauge />, expenseSlot)}
           </main>
@@ -636,3 +948,4 @@ export default function DashboardClient({
     </div>
   );
 }
+
