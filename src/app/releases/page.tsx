@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { LandingHeader } from "@/components/landing/landing-header";
 import { ReleaseNotesScrollParticleField } from "@/components/release-notes/scroll-particle-field";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -115,6 +116,10 @@ function ChangeSection({ label, items }: { label: string; items: string[] }) {
 }
 
 export default async function ReleaseNotesPage() {
+  const supabase = await createSupabaseServerClient({ allowSetCookies: false });
+  const { data } = await supabase.auth.getUser();
+  const isSignedIn = Boolean(data?.user);
+  const primaryHref = isSignedIn ? "/dashboard" : "/signup";
   const releaseNotes = await getReleaseNotes();
 
   return (
@@ -124,7 +129,11 @@ export default async function ReleaseNotesPage() {
         aria-hidden
         className="absolute inset-0 z-[2] bg-gradient-to-b from-black/36 via-black/26 to-black/40"
       />
-      <header className="fixed left-1/2 top-6 z-50 w-[min(94%,980px)] -translate-x-1/2">
+      <div className="md:hidden">
+        <LandingHeader isSignedIn={isSignedIn} primaryHref={primaryHref} />
+      </div>
+
+      <header className="fixed left-1/2 top-6 z-50 hidden w-[min(94%,980px)] -translate-x-1/2 md:block">
         <div className="grid items-center gap-4 rounded-full border border-white/10 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur-xl md:grid-cols-[1fr_auto_1fr]">
           <Link href="/" className="inline-flex w-fit items-center gap-3 text-base font-semibold tracking-tight">
             <Image
