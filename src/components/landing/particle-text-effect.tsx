@@ -284,12 +284,24 @@ export function ParticleTextEffect({
 
     reduceMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    const resolveDevicePixelRatio = () => {
+      const isMobile = window.matchMedia("(max-width: 768px) and (pointer: coarse)").matches;
+      if (!isMobile) return 1;
+      return Math.min(window.devicePixelRatio || 1, 2);
+    };
+
     const resizeCanvas = () => {
       const container = canvas.parentElement;
       if (!container) return;
 
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      const ratio = resolveDevicePixelRatio();
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      canvas.width = Math.max(1, Math.floor(width * ratio));
+      canvas.height = Math.max(1, Math.floor(height * ratio));
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
     };
 
     const boot = async () => {

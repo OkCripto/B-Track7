@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ParticleTextEffect } from "@/components/landing/particle-text-effect";
+import { LandingHeader } from "@/components/landing/landing-header";
 import { Reveal } from "@/components/landing/reveal";
 import { BackgroundPaths } from "@/components/landing/background-paths";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -75,62 +76,7 @@ export default async function Home() {
   const heroPrimaryLabel = isSignedIn ? "Open dashboard" : "Start tracking";
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="fixed left-1/2 top-6 z-50 w-[min(94%,980px)] -translate-x-1/2">
-        <div className="grid items-center gap-4 rounded-full border border-white/10 bg-black/70 px-5 py-3 shadow-2xl backdrop-blur-xl md:grid-cols-[1fr_auto_1fr]">
-          <Link href="/" className="inline-flex w-fit items-center gap-3 text-base font-semibold tracking-tight">
-            <Image
-              src="/logo.svg"
-              alt="B-Track7 logo"
-              width={30}
-              height={30}
-              className="h-7 w-7"
-              priority
-            />
-            <span>B-Track7</span>
-          </Link>
-
-          <nav className="hidden items-center justify-center gap-6 text-sm text-white/70 md:flex">
-            <a className="transition hover:text-white" href="#features">
-              Features
-            </a>
-            <a className="transition hover:text-white" href="#pricing">
-              Pricing
-            </a>
-            <a className="transition hover:text-white" href="#faq">
-              FAQ
-            </a>
-            <Link className="transition hover:text-white" href="/releases">
-              Release Notes
-            </Link>
-          </nav>
-
-          <div className="flex items-center justify-end gap-3 text-sm font-semibold">
-            {isSignedIn ? (
-              <Link
-                href="/dashboard"
-                className="rounded-full bg-white px-4 py-2 text-black transition hover:bg-white/90"
-              >
-                Dashboard
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="rounded-full border border-white/15 px-4 py-2 text-white/80 transition hover:border-white/30 hover:text-white"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  href={primaryHref}
-                  className="rounded-full bg-white px-4 py-2 text-black transition hover:bg-white/90"
-                >
-                  Get started
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <LandingHeader isSignedIn={isSignedIn} primaryHref={primaryHref} />
 
       <main className="pt-24">
         <section className="relative overflow-hidden bg-black">

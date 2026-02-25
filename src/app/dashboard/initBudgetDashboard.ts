@@ -324,13 +324,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     
     // All Transactions Page Elements
     const fullTransactionListContainer = document.getElementById('full-transaction-list-container');
-    const searchDescriptionInput = document.getElementById('search-description');
-    const filterTypeSelect = document.getElementById('filter-type');
-    const filterCategorySelect = document.getElementById('filter-category');
-    const filterDateStartInput = document.getElementById('filter-date-start');
-    const filterDateEndInput = document.getElementById('filter-date-end');
-    const resetFiltersBtn = document.getElementById('reset-filters-btn');
-    const eraseDataBtn = document.getElementById('erase-data-btn');
+    const searchDescriptionInputs = Array.from(document.querySelectorAll('#search-description'));
+    const filterTypeSelects = Array.from(document.querySelectorAll('#filter-type'));
+    const filterCategorySelects = Array.from(document.querySelectorAll('#filter-category'));
+    const filterDateStartInputs = Array.from(document.querySelectorAll('#filter-date-start'));
+    const filterDateEndInputs = Array.from(document.querySelectorAll('#filter-date-end'));
+    const resetFiltersBtns = Array.from(document.querySelectorAll('#reset-filters-btn'));
+    const eraseDataBtns = Array.from(document.querySelectorAll('#erase-data-btn'));
 
     // Assets Page Elements
     const assetListEl = document.getElementById('asset-list');
@@ -352,6 +352,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const analyticsPeriodSelect = document.getElementById('analytics-period');
     const analyticsYearSelect = document.getElementById('analytics-year');
     const analyticsMonthSelect = document.getElementById('analytics-month');
+    const analyticsMoreBtn = document.getElementById('analytics-more-btn');
+    const analyticsMorePanel = document.getElementById('analytics-more-panel');
     const analyticsSavingsEl = document.getElementById('analytics-savings');
     const analyticsIncomeEl = document.getElementById('analytics-income');
     const analyticsExpensesEl = document.getElementById('analytics-expenses');
@@ -359,6 +361,176 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     const analyticsAverageExpenseEl = document.getElementById('analytics-average-expense');
     const analyticsSavingsRateEl = document.getElementById('analytics-savings-rate');
     const chartTooltip = document.getElementById('chart-tooltip');
+
+    // -------------------------------------------------------------------------
+    // CUSTOM SELECTS (NON-NATIVE DROPDOWN UI)
+    // -------------------------------------------------------------------------
+
+    const customSelects = new WeakMap();
+    let activeCustomSelect = null;
+
+    const closeCustomSelect = () => {
+        if (!activeCustomSelect) return;
+        activeCustomSelect.classList.remove('open');
+        activeCustomSelect = null;
+    };
+
+    const buildCustomSelect = (selectEl) => {
+        if (!selectEl || customSelects.has(selectEl)) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'custom-select';
+        selectEl.parentNode?.insertBefore(wrapper, selectEl);
+        wrapper.appendChild(selectEl);
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = `${selectEl.className} custom-select-trigger`;
+        trigger.innerHTML = `
+            <span class="custom-select-label"></span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        `;
+
+        const menu = document.createElement('div');
+        menu.className = 'custom-select-menu';
+        menu.setAttribute('role', 'listbox');
+
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(menu);
+
+        const labelEl = trigger.querySelector('.custom-select-label');
+
+        const syncOptions = () => {
+            const options = Array.from(selectEl.options);
+            menu.innerHTML = '';
+            options.forEach((option) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option';
+                item.textContent = option.textContent || option.value;
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+                if (option.disabled) {
+                    item.disabled = true;
+                    item.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                item.addEventListener('click', () => {
+                    if (option.disabled) return;
+                    selectEl.value = option.value;
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    syncLabel();
+                    closeCustomSelect();
+                });
+                menu.appendChild(item);
+            });
+            syncLabel();
+        };
+
+        const syncLabel = () => {
+            const selectedOption = selectEl.options[selectEl.selectedIndex];
+            if (labelEl) {
+                labelEl.textContent = selectedOption?.textContent || selectedOption?.value || '';
+            }
+            menu.querySelectorAll('.custom-select-option').forEach((item, index) => {
+                const option = selectEl.options[index];
+                item.setAttribute('aria-selected', option?.selected ? 'true' : 'false');
+            });
+        };
+
+        const openSelect = () => {
+            if (activeCustomSelect && activeCustomSelect !== wrapper) {
+                closeCustomSelect();
+            }
+            wrapper.classList.add('open');
+            activeCustomSelect = wrapper;
+        };
+
+        trigger.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (wrapper.classList.contains('open')) {
+                closeCustomSelect();
+            } else {
+                openSelect();
+            }
+        });
+
+        const label = selectEl.id ? document.querySelector(`label[for="${selectEl.id}"]`) : null;
+        if (label) {
+            label.addEventListener('click', (event) => {
+                event.preventDefault();
+                trigger.focus();
+                openSelect();
+            });
+        }
+
+        selectEl.className = 'custom-select-native';
+
+        const observer = new MutationObserver(() => {
+            syncOptions();
+        });
+        observer.observe(selectEl, { childList: true, subtree: true, attributes: true });
+
+        selectEl.addEventListener('change', syncLabel);
+
+        syncOptions();
+
+        customSelects.set(selectEl, { wrapper, trigger, menu, observer, syncOptions });
+    };
+
+    const shouldUseCustomSelects = () => window.matchMedia('(max-width: 767px)').matches;
+
+    const enhanceAllSelects = () => {
+        if (!shouldUseCustomSelects()) return;
+        const selects = document.querySelectorAll('.budget-dashboard select');
+        selects.forEach((selectEl) => buildCustomSelect(selectEl));
+    };
+
+    document.addEventListener('click', () => {
+        closeCustomSelect();
+    });
+
+    enhanceAllSelects();
+
+    if (analyticsMoreBtn && analyticsMorePanel) {
+        const openPanelClasses = ['opacity-100', 'pointer-events-auto', 'translate-y-0'];
+        const closedPanelClasses = ['opacity-0', 'pointer-events-none', 'translate-y-1'];
+
+        const closeAnalyticsPanel = () => {
+            analyticsMoreBtn.setAttribute('aria-expanded', 'false');
+            analyticsMorePanel.classList.remove(...openPanelClasses);
+            analyticsMorePanel.classList.add(...closedPanelClasses);
+        };
+
+        analyticsMoreBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpen = analyticsMoreBtn.getAttribute('aria-expanded') === 'true';
+            if (!isOpen) {
+                analyticsMoreBtn.setAttribute('aria-expanded', 'true');
+                analyticsMorePanel.classList.remove(...closedPanelClasses);
+                analyticsMorePanel.classList.add(...openPanelClasses);
+            } else {
+                closeAnalyticsPanel();
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!(event.target instanceof Node)) return;
+            if (analyticsMoreBtn.getAttribute('aria-expanded') !== 'true') return;
+            if (analyticsMorePanel.contains(event.target) || analyticsMoreBtn.contains(event.target)) return;
+            closeAnalyticsPanel();
+        });
+
+        [analyticsYearSelect, analyticsMonthSelect].forEach((select) => {
+            if (!select) return;
+            select.addEventListener('change', () => {
+                if (window.innerWidth < 640) {
+                    closeAnalyticsPanel();
+                }
+            });
+        });
+    }
 
     const attachDatePickerOpenOnFieldClick = (inputEl) => {
         if (!inputEl) return;
@@ -377,7 +549,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         });
     };
 
-    [formDateInput, filterDateStartInput, filterDateEndInput].forEach(attachDatePickerOpenOnFieldClick);
+    [formDateInput, ...filterDateStartInputs, ...filterDateEndInputs].forEach(attachDatePickerOpenOnFieldClick);
 
     // -------------------------------------------------------------------------
     // UTILITY FUNCTIONS
@@ -878,38 +1050,41 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const assetName = state.assets.find(a => a.id === t.assetId)?.name || 'Unknown';
 
                                     const li = document.createElement('div');
-            li.className = 'transaction-item group rounded-xl border border-border/60 bg-card/60 p-4 transition-all duration-200 hover:border-accent/40 hover:bg-card/80';
+            li.className = 'transaction-item group rounded-xl border border-border/60 bg-card/60 p-3 sm:p-4 transition-all duration-200 hover:border-accent/40 hover:bg-card/80';
             li.innerHTML = `
                 <div class="flex flex-col gap-3">
-                    <div class="flex items-start gap-4">
-                        <div class="h-11 w-11 rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
+                    <div class="flex items-start gap-3 sm:gap-4">
+                        <div class="h-10 w-10 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl ${isIncome ? 'bg-sky-500/10' : 'bg-rose-500/10'} flex items-center justify-center">
                             ${isIncome ? 
-                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
-                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
+                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>` :
+                                `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>`
                             }
                         </div>
                         <div class="flex-1">
-                            <div class="flex flex-col gap-2 md:grid md:grid-cols-12 md:items-center md:gap-3">
-                                <div class="md:col-span-5">
-                                    <p class="text-sm text-muted-foreground">${t.category} &bull; ${assetName}</p>
-                                    <p class="text-base font-semibold text-foreground">${t.description}</p>
+                            <div class="flex items-start justify-between gap-3 md:grid md:grid-cols-12 md:items-center md:gap-3">
+                                <div class="md:col-span-5 flex-1">
+                                    <p class="text-xs sm:text-sm text-muted-foreground">${t.category} &bull; ${assetName}</p>
+                                    <p class="text-sm sm:text-base font-semibold text-foreground">${t.description}</p>
+                                    <div class="mt-1 text-[0.7rem] sm:text-xs text-muted-foreground md:hidden">${formatDateForDisplay(t.date)}</div>
                                 </div>
-                                <div class="md:col-span-3 text-xs text-muted-foreground md:text-center">${formatDateForDisplay(t.date)}</div>
-                                <div class="md:col-span-4 flex items-center justify-between md:justify-end gap-2">
-                                    <p class="font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
-                                    ${t.note ? `
-                                        <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                                        </button>
-                                    ` : '<div class="w-7"></div>'}
-                                    <div class="relative transaction-actions">
+                                <div class="hidden md:block md:col-span-3 text-[0.7rem] sm:text-xs text-muted-foreground md:text-center">${formatDateForDisplay(t.date)}</div>
+                                <div class="md:col-span-4 flex flex-col items-end gap-2 md:flex-row md:items-center md:justify-end md:gap-2">
+                                    <div class="order-1 md:order-3 relative transaction-actions">
                                         <button class="more-btn p-1 text-muted-foreground hover:text-foreground" aria-label="More actions">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
                                         </button>
                                         <div class="transaction-actions-menu hidden absolute right-0 mt-2 w-28 rounded-md border border-border bg-card shadow-lg z-20">
                                             <button data-id="${t.id}" class="edit-btn w-full text-left px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40">Edit</button>
                                             <button data-id="${t.id}" class="delete-btn w-full text-left px-3 py-2 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10">Delete</button>
                                         </div>
+                                    </div>
+                                    <div class="order-2 md:order-1 flex items-center gap-2">
+                                        <p class="text-sm sm:text-base font-semibold text-right ${amountClass}">${state.ui.isBalanceVisible ? `${sign}${formatCurrency(Math.abs(t.amount))}`: '******'}</p>
+                                        ${t.note ? `
+                                            <button class="note-toggle-btn p-1 text-muted-foreground hover:text-accent">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                                            </button>
+                                        ` : '<div class="w-6 sm:w-7"></div>'}
                                     </div>
                                 </div>
                             </div>
@@ -1081,22 +1256,36 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     // -------------------------------------------------------------------------
     
     const renderFilters = () => {
-        // Populate category dropdown
+        // Populate category dropdowns
         const allCategories = [...new Set(['Internal Transfer', ...state.incomeCategories, ...state.expenseCategories.map(c => c.name)])];
-        filterCategorySelect.innerHTML = '<option value="all">All Categories</option>';
-        allCategories.sort().forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat;
-            option.textContent = cat;
-            filterCategorySelect.appendChild(option);
+        const sortedCategories = allCategories.sort();
+        filterCategorySelects.forEach((selectEl) => {
+            if (!selectEl) return;
+            selectEl.innerHTML = '<option value="all">All Categories</option>';
+            sortedCategories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                selectEl.appendChild(option);
+            });
         });
 
         // Set values from state
-        searchDescriptionInput.value = state.ui.filters.description;
-        filterTypeSelect.value = state.ui.filters.type;
-        filterCategorySelect.value = state.ui.filters.category;
-        filterDateStartInput.value = state.ui.filters.startDate;
-        filterDateEndInput.value = state.ui.filters.endDate;
+        searchDescriptionInputs.forEach((input) => {
+            if (input) input.value = state.ui.filters.description;
+        });
+        filterTypeSelects.forEach((selectEl) => {
+            if (selectEl) selectEl.value = state.ui.filters.type;
+        });
+        filterCategorySelects.forEach((selectEl) => {
+            if (selectEl) selectEl.value = state.ui.filters.category;
+        });
+        filterDateStartInputs.forEach((input) => {
+            if (input) input.value = state.ui.filters.startDate;
+        });
+        filterDateEndInputs.forEach((input) => {
+            if (input) input.value = state.ui.filters.endDate;
+        });
     };
 
     const renderAllTransactionsPage = () => {
@@ -1126,33 +1315,51 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         renderTransactionList(filtered, fullTransactionListContainer, document.createElement('div'));
     };
     
-    searchDescriptionInput.addEventListener('input', () => {
-        state.ui.filters.description = searchDescriptionInput.value;
-        renderAllTransactionsPage();
-    });
-
-    [filterTypeSelect, filterCategorySelect, filterDateStartInput, filterDateEndInput].forEach(el => {
-        el.addEventListener('change', () => {
-            state.ui.filters.type = filterTypeSelect.value;
-            state.ui.filters.category = filterCategorySelect.value;
-            state.ui.filters.startDate = filterDateStartInput.value;
-            state.ui.filters.endDate = filterDateEndInput.value;
+    searchDescriptionInputs.forEach((input) => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+            state.ui.filters.description = input.value;
             renderAllTransactionsPage();
         });
     });
-    
-    resetFiltersBtn.addEventListener('click', () => {
-        state.ui.filters = {
-            description: '',
-            type: 'all',
-            category: 'all',
-            startDate: '',
-            endDate: ''
-        };
+
+    const handleFilterChange = (event) => {
+        const target = event?.target;
+        if (!target) return;
+        if (target.id === 'filter-type') {
+            state.ui.filters.type = target.value;
+        } else if (target.id === 'filter-category') {
+            state.ui.filters.category = target.value;
+        } else if (target.id === 'filter-date-start') {
+            state.ui.filters.startDate = target.value;
+        } else if (target.id === 'filter-date-end') {
+            state.ui.filters.endDate = target.value;
+        }
         renderAllTransactionsPage();
+    };
+
+    [...filterTypeSelects, ...filterCategorySelects, ...filterDateStartInputs, ...filterDateEndInputs].forEach(el => {
+        if (!el) return;
+        el.addEventListener('change', handleFilterChange);
+    });
+    
+    resetFiltersBtns.forEach((btn) => {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            state.ui.filters = {
+                description: '',
+                type: 'all',
+                category: 'all',
+                startDate: '',
+                endDate: ''
+            };
+            renderAllTransactionsPage();
+        });
     });
 
-    eraseDataBtn.addEventListener('click', () => {
+    eraseDataBtns.forEach((btn) => {
+        if (!btn) return;
+        btn.addEventListener('click', () => {
         const today = new Date();
         const expectedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
         const expectedPhrase = 'I want to delete all my data';
@@ -1236,6 +1443,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             await loadState();
             closeModal();
             render();
+        });
         });
     });
 
