@@ -78,14 +78,14 @@ export function LandingHeader({ isSignedIn, primaryHref }: LandingHeaderProps) {
               aria-controls="mobile-nav"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 transition hover:border-white/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 md:hidden"
           >
-            <span className="relative block h-5 w-5">
+            <span className="relative block h-4 w-4">
               <span
-                className={`absolute left-1/2 top-1/2 h-0.5 w-5 -translate-x-1/2 -translate-y-[6px] rounded-full bg-current transition-transform duration-300 ${
+                className={`absolute left-1/2 top-1/2 h-0.5 w-4 -translate-x-1/2 -translate-y-[5px] rounded-full bg-current transition-transform duration-300 ${
                   isMenuOpen ? "translate-y-0 rotate-45" : ""
                 }`}
               />
               <span
-                className={`absolute left-1/2 top-1/2 h-0.5 w-5 -translate-x-1/2 translate-y-[6px] rounded-full bg-current transition-transform duration-300 ${
+                className={`absolute left-1/2 top-1/2 h-0.5 w-4 -translate-x-1/2 translate-y-[5px] rounded-full bg-current transition-transform duration-300 ${
                   isMenuOpen ? "translate-y-0 -rotate-45" : ""
                 }`}
               />

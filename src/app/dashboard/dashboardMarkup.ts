@@ -16,69 +16,69 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
             <!-- Tracker Page -->
             <div id="page-tracker" class="${trackerClass}">
                 <!-- Summary Cards -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="card card-glow px-5 py-4">
-                        <div class="flex items-start justify-between mb-2">
+                <div class="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6 md:-mt-2">
+                    <div class="card card-glow h-24 sm:h-auto sm:aspect-auto p-2.5 sm:px-5 sm:py-4 flex flex-col gap-1.5">
+                        <div class="flex items-start justify-between gap-2">
                             <span class="text-xs font-medium text-muted-foreground">Monthly Income</span>
-                            <div class="w-9 h-9 rounded-lg bg-muted/30 flex items-center justify-center">
+                            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-muted/30 flex items-center justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>
                             </div>
                         </div>
-                        <div class="flex items-baseline gap-2">
-                        <p id="income-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
-                        <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
-                            <span id="income-delta" class="font-semibold text-muted-foreground">0.0%</span>
-                        </div>
+                        <div class="flex flex-col gap-0.5 sm:mt-2 sm:flex-row sm:items-baseline sm:gap-2 md:-mt-0.5">
+                          <p id="income-amount" class="text-[0.95rem] sm:text-2xl lg:text-3xl font-semibold text-foreground tracking-tight leading-none">₹0.00</p>
+                          <div class="flex items-center gap-1 text-[0.6rem] sm:text-[0.7rem] delta-indicator whitespace-nowrap">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
+                              <span id="income-delta" class="font-semibold text-muted-foreground">0.0%</span>
+                          </div>
                         </div>
                     </div>
-                    <div class="card card-glow px-5 py-4">
-                        <div class="flex items-start justify-between mb-2">
+                    <div class="card card-glow h-24 sm:h-auto sm:aspect-auto p-2.5 sm:px-5 sm:py-4 flex flex-col gap-1.5">
+                        <div class="flex items-start justify-between gap-2">
                             <span class="text-xs font-medium text-muted-foreground">Monthly Expense</span>
-                            <div class="w-9 h-9 rounded-lg bg-muted/30 flex items-center justify-center">
+                            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-muted/30 flex items-center justify-center">
                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17l-8.5-8.5-5 5L2 7" /><path d="M16 17h6v-6" /></svg>
                             </div>
                         </div>
-                        <div class="flex items-baseline gap-2">
-                        <p id="expense-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
-                        <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
-                            <span id="expense-delta" class="font-semibold text-muted-foreground">0.0%</span>
-                        </div>
+                        <div class="flex flex-col gap-0.5 sm:mt-2 sm:flex-row sm:items-baseline sm:gap-2 md:-mt-0.5">
+                          <p id="expense-amount" class="text-[0.95rem] sm:text-2xl lg:text-3xl font-semibold text-foreground tracking-tight leading-none">₹0.00</p>
+                          <div class="flex items-center gap-1 text-[0.6rem] sm:text-[0.7rem] delta-indicator whitespace-nowrap">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
+                              <span id="expense-delta" class="font-semibold text-muted-foreground">0.0%</span>
+                          </div>
                         </div>
                     </div>
-                    <div class="card card-glow px-5 py-4">
-                        <div class="flex items-start justify-between mb-2">
+                    <div class="card card-glow h-24 sm:h-auto sm:aspect-auto p-2.5 sm:px-5 sm:py-4 flex flex-col gap-1.5">
+                        <div class="flex items-start justify-between gap-2">
                             <span class="text-xs font-medium text-muted-foreground">Monthly Savings</span>
-                            <div class="w-9 h-9 rounded-lg bg-muted/30 flex items-center justify-center">
+                            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-muted/30 flex items-center justify-center">
                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v12" /><path d="M8 10h8" /></svg>
                             </div>
                         </div>
-                        <div class="flex items-baseline gap-2">
-                        <p id="monthly-savings-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
-                        <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
-                            <span id="savings-delta" class="font-semibold text-muted-foreground">0.0%</span>
-                        </div>
+                        <div class="flex flex-col gap-0.5 sm:mt-2 sm:flex-row sm:items-baseline sm:gap-2 md:-mt-0.5">
+                          <p id="monthly-savings-amount" class="text-[0.95rem] sm:text-2xl lg:text-3xl font-semibold text-foreground tracking-tight leading-none">₹0.00</p>
+                          <div class="flex items-center gap-1 text-[0.6rem] sm:text-[0.7rem] delta-indicator whitespace-nowrap">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
+                              <span id="savings-delta" class="font-semibold text-muted-foreground">0.0%</span>
+                          </div>
                         </div>
                     </div>
-                    <div class="card card-glow px-5 py-4">
-                        <div class="flex items-start justify-between mb-2">
+                    <div class="card card-glow h-24 sm:h-auto sm:aspect-auto p-2.5 sm:px-5 sm:py-4 flex flex-col gap-1.5">
+                        <div class="flex items-start justify-between gap-2">
                             <span class="text-xs font-medium text-muted-foreground">Net Worth</span>
-                            <div class="w-9 h-9 rounded-lg bg-muted/30 flex items-center justify-center">
+                            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-muted/30 flex items-center justify-center">
                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1" /><path d="M3 7h18" /><path d="M16 10h2" /></svg>
                             </div>
                         </div>
-                        <div class="flex items-baseline gap-2">
-                        <p id="net-worth-amount" class="text-2xl lg:text-3xl font-semibold text-foreground tracking-tight">₹0.00</p>
-                        <div class="flex items-center gap-1 text-[0.7rem] delta-indicator whitespace-nowrap">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
-                            <span id="networth-delta" class="font-semibold text-muted-foreground">0.0%</span>
-                        </div>
+                        <div class="flex flex-col gap-0.5 sm:mt-2 sm:flex-row sm:items-baseline sm:gap-2 md:-mt-0.5">
+                          <p id="net-worth-amount" class="text-[0.95rem] sm:text-2xl lg:text-3xl font-semibold text-foreground tracking-tight leading-none">₹0.00</p>
+                          <div class="flex items-center gap-1 text-[0.6rem] sm:text-[0.7rem] delta-indicator whitespace-nowrap">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-up h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 6-6 4 4 7-7"/><path d="M14 7h7v7"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" class="delta-icon-down h-3 w-3 text-muted-foreground hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 6 6 4-4 7 7"/><path d="M14 17h7v-7"/></svg>
+                              <span id="networth-delta" class="font-semibold text-muted-foreground">0.0%</span>
+                          </div>
                         </div>
                     </div>
                 </div>
@@ -123,9 +123,9 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <!-- Left Column: Add Transaction Form -->
                     <div class="lg:col-span-1 card p-6">
-                        <div class="flex items-center justify-between mb-4">
+                        <div class="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
                             <h2 class="text-xl font-semibold text-foreground">Add Transaction</h2>
-                            <button id="manage-categories-btn" class="text-xs font-medium text-sky-400 hover:text-sky-300 flex items-center gap-1">
+                            <button id="manage-categories-btn" class="text-xs font-medium text-sky-400 hover:text-sky-300 flex items-center gap-1 self-start sm:self-auto">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41 11 3H4a2 2 0 0 0-2 2v7l10.59 9.59a2 2 0 0 0 2.82 0l5.18-5.18a2 2 0 0 0 0-2.82Z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
                                 Manage Categories
                             </button>
@@ -183,7 +183,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                     </div>
 
                     <!-- Right Column: Transactions List -->
-                    <div class="lg:col-span-2 card p-6">
+                    <div class="lg:col-span-2 card p-4 sm:p-6">
                         <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-4">
                             <div><div><h2 class="text-xl font-semibold text-foreground">Recent Transactions</h2><p class="text-sm text-muted-foreground">Latest activity across your accounts</p></div></div>
                              <div class="flex flex-wrap items-center gap-2">
@@ -193,7 +193,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                                 </button>
                             </div>
                         </div>
-                        <div id="transaction-list-container" class="transaction-list h-[450px] overflow-y-auto pr-2">
+                        <div id="transaction-list-container" class="transaction-list max-h-[360px] sm:max-h-[420px] md:h-[420px] md:max-h-[420px] overflow-y-auto pr-0 sm:pr-2 space-y-2 md:space-y-0">
                             <!-- JS will render transactions here -->
                             <div id="no-transactions-msg" class="text-center py-16">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
@@ -207,58 +207,58 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
 
             <!-- Assets Page -->
             <div id="page-assets" class="${assetsClass}">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div class="lg:col-span-1 space-y-8">
-
-                        <!-- Added Total Assets Card -->
-                        <div class="card card-glow p-6 flex justify-between items-center">
-                            <div>
-                                <p class="text-sm font-medium text-muted-foreground">Total Assets</p>
-                                <p id="total-assets-amount" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
-                            </div>
-                            <div class="p-3 bg-muted/30 rounded-full">
-                               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 7h18" /><path d="M4 7v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7" /><path d="M12 11v6" /><path d="M9 14h6" /></svg>
-                            </div>
+                <div class="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:grid-rows-[auto_auto_auto]">
+                    <!-- Total Assets -->
+                    <div class="order-1 card card-glow p-6 flex justify-between items-center lg:col-span-1 lg:row-start-1">
+                        <div>
+                            <p class="text-sm font-medium text-muted-foreground">Total Assets</p>
+                            <p id="total-assets-amount" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
                         </div>
-                        <!-- End Added Card -->
-
-                        <div class="card card-glow p-6">
-                            <h2 class="text-xl font-semibold text-foreground mb-4">Transfer Funds</h2>
-                            <form id="transfer-form" class="space-y-4">
-                                <div>
-                                    <label for="transfer-from" class="block text-sm font-medium text-muted-foreground">From</label>
-                                    <select id="transfer-from" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm"></select>
-                                </div>
-                                <div>
-                                    <label for="transfer-to" class="block text-sm font-medium text-muted-foreground">To</label>
-                                    <select id="transfer-to" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm"></select>
-                                </div>
-                                <div>
-                                    <label for="transfer-amount" class="block text-sm font-medium text-muted-foreground">Amount</label>
-                                    <div class="mt-1 relative rounded-md shadow-sm">
-                                        <input type="number" id="transfer-amount" class="block w-full rounded-md border-border pl-3 pr-2 sm:text-sm" placeholder="0.00" step="0.01">
-                                    </div>
-                                </div>
-                                <button type="submit" class="w-full btn-primary py-2 px-4 rounded-md">Transfer</button>
-                            </form>
-                        </div>
-
-                         <div class="card card-glow p-6">
-                            <div class="flex justify-between items-center mb-4">
-                                <h2 class="text-xl font-semibold text-foreground">Your Assets</h2>
-                                <button id="manage-assets-btn" class="text-sm font-medium text-accent hover:text-accent">Manage</button>
-                            </div>
-                            <ul id="asset-list" class="space-y-3">
-                                <!-- Asset list rendered by JS -->
-                            </ul>
+                        <div class="p-3 bg-muted/30 rounded-full">
+                           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 7h18" /><path d="M4 7v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7" /><path d="M12 11v6" /><path d="M9 14h6" /></svg>
                         </div>
                     </div>
-                    <div class="lg:col-span-2 card p-6">
+
+                    <!-- Asset Distribution -->
+                    <div class="order-2 card p-6 lg:col-span-2 lg:col-start-2 lg:row-span-3 lg:row-start-1">
                          <h2 class="text-xl font-semibold text-foreground mb-4">Asset Distribution</h2>
                          <div id="asset-chart-container">
                             <canvas id="asset-chart"></canvas>
                              <div id="asset-chart-empty" class="absolute inset-0 flex items-center justify-center text-muted-foreground hidden">Add assets to see distribution.</div>
                         </div>
+                    </div>
+
+                    <!-- Your Assets -->
+                    <div class="order-3 card card-glow p-6 lg:col-span-1 lg:row-start-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold text-foreground">Your Assets</h2>
+                            <button id="manage-assets-btn" class="text-sm font-medium text-accent hover:text-accent">Manage</button>
+                        </div>
+                        <ul id="asset-list" class="space-y-3">
+                            <!-- Asset list rendered by JS -->
+                        </ul>
+                    </div>
+
+                    <!-- Transfer Funds -->
+                    <div class="order-4 card card-glow p-6 lg:col-span-1 lg:row-start-2">
+                        <h2 class="text-xl font-semibold text-foreground mb-4">Transfer Funds</h2>
+                        <form id="transfer-form" class="space-y-4">
+                            <div>
+                                <label for="transfer-from" class="block text-sm font-medium text-muted-foreground">From</label>
+                                <select id="transfer-from" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm"></select>
+                            </div>
+                            <div>
+                                <label for="transfer-to" class="block text-sm font-medium text-muted-foreground">To</label>
+                                <select id="transfer-to" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm"></select>
+                            </div>
+                            <div>
+                                <label for="transfer-amount" class="block text-sm font-medium text-muted-foreground">Amount</label>
+                                <div class="mt-1 relative rounded-md shadow-sm">
+                                    <input type="number" id="transfer-amount" class="block w-full rounded-md border-border pl-3 pr-2 sm:text-sm" placeholder="0.00" step="0.01">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full btn-primary py-2 px-4 rounded-md">Transfer</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -266,7 +266,7 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
             <!-- All Transactions Page -->
             <div id="page-all-transactions" class="${transactionsClass}">
                 <div class="card card-glow p-6">
-                    <div class="flex items-center justify-between mb-6">
+                    <div class="flex flex-col gap-2 mb-6 sm:flex-row sm:items-center sm:justify-between">
                         <h2 class="text-2xl font-bold text-foreground">All Transactions</h2>
                         <button id="data-options-btn" class="text-sm font-medium text-accent hover:text-accent flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="21" x2="14" y1="4" y2="4" /><line x1="10" x2="3" y1="4" y2="4" /><line x1="21" x2="12" y1="12" y2="12" /><line x1="8" x2="3" y1="12" y2="12" /><line x1="21" x2="16" y1="20" y2="20" /><line x1="12" x2="3" y1="20" y2="20" /><line x1="14" x2="14" y1="2" y2="6" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="16" x2="16" y1="18" y2="22" /></svg>
@@ -274,8 +274,52 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
                         </button>
                     </div>
                     
-                    <!-- Filters -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 mb-6 p-4 bg-card/70 rounded-xl border border-border/60">
+                    <!-- Filters (Mobile) -->
+                    <div class="md:hidden mb-6 p-4 bg-card/70 rounded-xl border border-border/60">
+                        <div>
+                            <label for="search-description" class="block text-sm font-medium text-muted-foreground">Search</label>
+                            <input type="text" id="search-description" placeholder="Search by description..." class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
+                        </div>
+                        <details class="mt-4">
+                            <summary class="flex cursor-pointer items-center justify-between rounded-md border border-border/60 bg-card/60 px-3 py-2 text-sm font-medium text-foreground">
+                                Filters
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+                            </summary>
+                            <div class="mt-4 space-y-4">
+                                <div>
+                                    <label for="filter-type" class="block text-sm font-medium text-muted-foreground">Type</label>
+                                    <select id="filter-type" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
+                                        <option value="all">All Types</option>
+                                        <option value="income">Income</option>
+                                        <option value="expense">Expense</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="filter-category" class="block text-sm font-medium text-muted-foreground">Category</label>
+                                    <select id="filter-category" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
+                                        <!-- JS Populated -->
+                                    </select>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label for="filter-date-start" class="block text-sm font-medium text-muted-foreground">From</label>
+                                        <input type="date" id="filter-date-start" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="filter-date-end" class="block text-sm font-medium text-muted-foreground">To</label>
+                                        <input type="date" id="filter-date-end" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-end space-x-2">
+                                    <button id="reset-filters-btn" class="h-9 px-4 btn-secondary rounded-md text-sm">Reset Filters</button>
+                                    <button id="erase-data-btn" class="h-9 px-4 btn-danger rounded-md text-sm">Erase All Data</button>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- Filters (Desktop) -->
+                    <div class="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 mb-6 p-4 bg-card/70 rounded-xl border border-border/60">
                         <div class="lg:col-span-3">
                              <label for="search-description" class="block text-sm font-medium text-muted-foreground">Search</label>
                              <input type="text" id="search-description" placeholder="Search by description..." class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
@@ -318,80 +362,109 @@ export const dashboardMarkup = (initialPage: DashboardPage = "tracker") => {
 
             <!-- Analytics Page -->
             <div id="page-analytics" class="${analyticsClass}">
-                <!-- Filters -->
-                <div class="card card-glow p-4 mb-8 flex flex-col sm:flex-row gap-4 items-center">
-                    <h3 class="text-lg font-semibold text-muted-foreground">Analytics Filters</h3>
-                    <div class="flex-grow grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label for="analytics-period" class="block text-sm font-medium text-muted-foreground">Period</label>
-                            <select id="analytics-period" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
-                                <option value="this-week">This Week</option>
-                                <option value="this-month" selected>This Month</option>
-                                <option value="this-year">This Year</option>
-                                <option value="ytd">Year to Date</option>
-                                <option value="all-time">All Time</option>
-                            </select>
+                <div class="flex flex-col gap-8 md:grid md:grid-cols-[420px_minmax(0,1fr)] md:gap-8">
+                    <!-- Filters -->
+                    <div class="card card-glow relative z-20 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 md:col-span-2 order-1 md:order-1">
+                        <h3 class="hidden text-lg font-semibold text-muted-foreground sm:block whitespace-nowrap shrink-0">Analytics Filters</h3>
+                        <div class="relative z-50 flex w-full items-center gap-2 sm:flex-1 sm:w-auto sm:grid sm:grid-cols-3 sm:gap-4">
+                            <div class="flex-1 sm:flex-none">
+                                <label for="analytics-period" class="sr-only sm:not-sr-only block text-sm font-medium text-muted-foreground">Period</label>
+                                <select id="analytics-period" class="block w-full min-w-[160px] rounded-md border-border shadow-sm sm:mt-1 sm:text-sm">
+                                    <option value="this-week">This Week</option>
+                                    <option value="this-month" selected>This Month</option>
+                                    <option value="this-year">This Year</option>
+                                    <option value="ytd">Year to Date</option>
+                                    <option value="all-time">All Time</option>
+                                </select>
+                            </div>
+                            <button
+                                id="analytics-more-btn"
+                                type="button"
+                                aria-label="More filters"
+                                aria-expanded="false"
+                                aria-controls="analytics-more-panel"
+                                class="sm:hidden inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:text-foreground"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="5" cy="12" r="1" />
+                                    <circle cx="12" cy="12" r="1" />
+                                    <circle cx="19" cy="12" r="1" />
+                                </svg>
+                            </button>
+                            <div
+                                id="analytics-more-panel"
+                                class="absolute right-0 top-full mt-2 w-52 rounded-xl border border-border bg-card p-3 shadow-lg z-30 opacity-0 pointer-events-none translate-y-1 transition sm:static sm:mt-0 sm:w-auto sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:grid sm:grid-cols-2 sm:gap-4 sm:opacity-100 sm:pointer-events-auto sm:translate-y-0 sm:col-span-2"
+                            >
+                                <div class="space-y-2 sm:space-y-0">
+                                    <label for="analytics-year" class="sr-only sm:not-sr-only block text-sm font-medium text-muted-foreground">Year</label>
+                                    <select id="analytics-year" class="block w-full rounded-md border-border shadow-sm sm:mt-1 sm:text-sm">
+                                        <!-- JS Populated -->
+                                    </select>
+                                </div>
+                                <div class="space-y-2 sm:space-y-0 mt-2 sm:mt-0">
+                                    <label for="analytics-month" class="sr-only sm:not-sr-only block text-sm font-medium text-muted-foreground">Month</label>
+                                    <select id="analytics-month" class="block w-full rounded-md border-border shadow-sm sm:mt-1 sm:text-sm">
+                                        <!-- JS Populated -->
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                         <div>
-                            <label for="analytics-year" class="block text-sm font-medium text-muted-foreground">Year</label>
-                            <select id="analytics-year" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
-                                <!-- JS Populated -->
-                            </select>
-                        </div>
-                        <div>
-                            <label for="analytics-month" class="block text-sm font-medium text-muted-foreground">Month</label>
-                            <select id="analytics-month" class="mt-1 block w-full rounded-md border-border shadow-sm sm:text-sm">
-                                <!-- JS Populated -->
-                            </select>
-                        </div>
                     </div>
-                </div>
-                
-                <!-- Analytics Summary -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                     <div class="card card-glow p-6">
-                        <p class="text-sm font-medium text-muted-foreground">Net Savings</p>
-                        <p id="analytics-savings" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
-                    </div>
-                    <div class="card card-glow p-6">
-                        <p class="text-sm font-medium text-muted-foreground">Total Income</p>
-                        <p id="analytics-income" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
-                    </div>
-                    <div class="card card-glow p-6">
-                        <p class="text-sm font-medium text-muted-foreground">Total Expenses</p>
-                        <p id="analytics-expenses" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
-                    </div>
-                </div>
 
-                <!-- Analytics Metrics -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    <div class="card card-glow px-5 py-4">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Transactions</p>
-                        <div class="mt-3 flex items-end justify-between">
-                            <p id="analytics-transactions-count" class="text-xl font-semibold text-foreground">0</p>
-                            <span class="text-xs text-muted-foreground">This period</span>
+                    <!-- Analytics Metrics -->
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:col-span-2 order-2 md:order-3">
+                        <div class="card card-glow px-5 py-4 order-1">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Transactions</p>
+                            <div class="mt-3 flex items-end justify-between">
+                                <p id="analytics-transactions-count" class="text-xl font-semibold text-foreground">0</p>
+                                <span class="text-xs text-muted-foreground">This period</span>
+                            </div>
+                        </div>
+                        <div class="card card-glow px-5 py-4 order-2 sm:order-3">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Savings Rate</p>
+                            <div class="mt-3 flex items-end justify-between">
+                                <p id="analytics-savings-rate" class="text-xl font-semibold text-foreground">0%</p>
+                                <span class="text-xs text-muted-foreground">Income</span>
+                            </div>
+                        </div>
+                        <div class="card card-glow px-5 py-4 order-3 col-span-2 sm:order-2 sm:col-span-1">
+                            <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Avg Expense</p>
+                            <div class="mt-3 flex items-end justify-between">
+                                <p id="analytics-average-expense" class="text-xl font-semibold text-foreground">?0.00</p>
+                                <span class="text-xs text-muted-foreground">Per txn</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="card card-glow px-5 py-4">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Avg Expense</p>
-                        <div class="mt-3 flex items-end justify-between">
-                            <p id="analytics-average-expense" class="text-xl font-semibold text-foreground">?0.00</p>
-                            <span class="text-xs text-muted-foreground">Per txn</span>
-                        </div>
-                    </div>
-                    <div class="card card-glow px-5 py-4">
-                        <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Savings Rate</p>
-                        <div class="mt-3 flex items-end justify-between">
-                            <p id="analytics-savings-rate" class="text-xl font-semibold text-foreground">0%</p>
-                            <span class="text-xs text-muted-foreground">Income</span>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Charts -->
-                <div class="grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)] gap-8">
-                    <div id="expense-by-category-slot"></div>
-                    <div class="card card-glow p-6">
+                    <!-- Expense by Category -->
+                    <div id="expense-by-category-slot" class="order-3 md:order-4 md:col-span-1"></div>
+
+                    <!-- Summary (Monthly on Mobile, Totals on Desktop) -->
+                    <div class="order-4 md:order-2 md:col-span-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
+                            <div class="card card-glow p-6 order-1 md:order-2">
+                                <p class="text-sm font-medium text-muted-foreground">
+                                    <span class="md:hidden">Monthly Income</span>
+                                    <span class="hidden md:inline">Total Income</span>
+                                </p>
+                                <p id="analytics-income" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                            </div>
+                            <div class="card card-glow p-6 order-2 md:order-3">
+                                <p class="text-sm font-medium text-muted-foreground">
+                                    <span class="md:hidden">Monthly Expense</span>
+                                    <span class="hidden md:inline">Total Expenses</span>
+                                </p>
+                                <p id="analytics-expenses" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                            </div>
+                            <div class="card card-glow p-6 order-3 md:order-1">
+                                <p class="text-sm font-medium text-muted-foreground">Net Savings</p>
+                                <p id="analytics-savings" class="text-3xl font-bold text-muted-foreground">â‚¹0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Expense Trend -->
+                    <div class="card card-glow p-6 order-5 md:order-4 md:col-span-1">
                         <h3 class="text-xl font-semibold text-foreground mb-4">Expense Trend</h3>
                         <div id="expense-trend-chart-container">
                             <canvas id="expense-trend-chart"></canvas>
