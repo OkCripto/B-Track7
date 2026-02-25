@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface LandingHeaderProps {
@@ -18,6 +19,10 @@ const navItems = [
 
 export function LandingHeader({ isSignedIn, primaryHref }: LandingHeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+  const resolveHref = (href: string) =>
+    href.startsWith("#") ? (isHome ? href : `/${href}`) : href;
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -56,17 +61,19 @@ export function LandingHeader({ isSignedIn, primaryHref }: LandingHeaderProps) {
           </Link>
 
           <nav className="hidden items-center justify-center gap-6 text-sm text-white/70 md:flex">
-            {navItems.map((item) =>
-              item.href.startsWith("#") ? (
-                <a key={item.href} className="transition hover:text-white" href={item.href}>
+            {navItems.map((item) => {
+              const resolvedHref = resolveHref(item.href);
+              const isSamePageAnchor = item.href.startsWith("#") && isHome;
+              return isSamePageAnchor ? (
+                <a key={item.label} className="transition hover:text-white" href={resolvedHref}>
                   {item.label}
                 </a>
               ) : (
-                <Link key={item.href} className="transition hover:text-white" href={item.href}>
+                <Link key={item.label} className="transition hover:text-white" href={resolvedHref}>
                   {item.label}
                 </Link>
-              ),
-            )}
+              );
+            })}
           </nav>
 
           <div className="flex items-center justify-end gap-2 text-sm font-semibold sm:gap-3">
@@ -139,11 +146,13 @@ export function LandingHeader({ isSignedIn, primaryHref }: LandingHeaderProps) {
           <div onClick={(event) => event.stopPropagation()}>
             <span className="text-xs font-semibold uppercase tracking-[0.4em] text-white/50">Menu</span>
             <nav className="mt-8 flex flex-col gap-6 text-2xl font-semibold">
-              {navItems.map((item) =>
-                item.href.startsWith("#") ? (
+              {navItems.map((item) => {
+                const resolvedHref = resolveHref(item.href);
+                const isSamePageAnchor = item.href.startsWith("#") && isHome;
+                return isSamePageAnchor ? (
                   <a
-                    key={item.href}
-                    href={item.href}
+                    key={item.label}
+                    href={resolvedHref}
                     className="transition hover:text-white"
                     onClick={handleCloseMenu}
                   >
@@ -151,15 +160,15 @@ export function LandingHeader({ isSignedIn, primaryHref }: LandingHeaderProps) {
                   </a>
                 ) : (
                   <Link
-                    key={item.href}
-                    href={item.href}
+                    key={item.label}
+                    href={resolvedHref}
                     className="transition hover:text-white"
                     onClick={handleCloseMenu}
                   >
                     {item.label}
                   </Link>
-                ),
-              )}
+                );
+              })}
             </nav>
           </div>
 
