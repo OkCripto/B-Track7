@@ -78,14 +78,14 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     let state = createDefaultState();
     state.ui.currentPage = resolveInitialPage();
 
-    const supabase = createBudgetBrowserClient();
+    const dataClient = createBudgetBrowserClient();
     let currentUserId = null;
     let lastEmittedUserId = null;
     let lastEmittedUserEmail = null;
     let lastRenderedPage = null;
 
     const requireUser = async () => {
-        const { data, error } = await supabase.auth.getUser();
+        const { data, error } = await dataClient.auth.getUser();
         if (error || !data?.user) {
             window.location.href = '/login';
             return null;
@@ -124,7 +124,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         );
 
         if (missingAssets.length > 0) {
-            const { error: missingAssetsError } = await supabase.from('assets').upsert(
+            const { error: missingAssetsError } = await dataClient.from('assets').upsert(
                 missingAssets.map(asset => ({
                     user_id: currentUserId,
                     name: asset.name,
@@ -139,7 +139,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         }
 
         if (needsDefaultFlagSync) {
-            const { error: syncDefaultError } = await supabase
+            const { error: syncDefaultError } = await dataClient
                 .from('assets')
                 .update({ is_default: true })
                 .eq('user_id', currentUserId)
@@ -153,7 +153,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return assets;
         }
 
-        const { data: syncedAssets, error: syncedAssetsError } = await supabase
+        const { data: syncedAssets, error: syncedAssetsError } = await dataClient
             .from('assets')
             .select('*')
             .order('created_at', { ascending: true });
@@ -170,13 +170,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         if (!user) return;
 
         const [assetsRes, categoriesRes, transactionsRes, settingsRes] = await Promise.all([
-            supabase.from('assets').select('*').order('created_at', { ascending: true }),
-            supabase.from('categories').select('*').order('created_at', { ascending: true }),
-            supabase
+            dataClient.from('assets').select('*').order('created_at', { ascending: true }),
+            dataClient.from('categories').select('*').order('created_at', { ascending: true }),
+            dataClient
                 .from('transactions')
                 .select('id, type, amount, description, note, transaction_date, created_at, asset_id, category:categories(name)')
                 .order('transaction_date', { ascending: false }),
-            supabase
+            dataClient
                 .from('user_settings')
                 .select('monthly_savings_target, use_compact_currency')
                 .eq('user_id', currentUserId)
@@ -213,7 +213,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
         if (settingsRes?.error) {
             console.error('Failed to load settings', settingsRes.error);
-            const fallbackSettings = await supabase
+            const fallbackSettings = await dataClient
                 .from('user_settings')
                 .select('monthly_savings_target')
                 .eq('user_id', currentUserId)
@@ -230,7 +230,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             }
         } else {
             const fallbackTarget = Number(state.settings.monthlySavingsTarget || 500);
-            const { data: insertedSettings, error: insertError } = await supabase
+            const { data: insertedSettings, error: insertError } = await dataClient
                 .from('user_settings')
                 .insert({
                     user_id: currentUserId,
@@ -241,7 +241,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 .single();
             if (insertError) {
                 console.error('Failed to create settings row', insertError);
-                const fallbackInsert = await supabase
+                const fallbackInsert = await dataClient
                     .from('user_settings')
                     .insert({
                         user_id: currentUserId,
@@ -1416,12 +1416,12 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const user = await requireUser();
             if (!user) return;
 
-            await supabase.from('transactions').delete().eq('user_id', currentUserId);
-            await supabase.from('categories').delete().eq('user_id', currentUserId).eq('is_system', false);
-            await supabase.from('assets').delete().eq('user_id', currentUserId).eq('is_default', false);
-            await supabase.from('assets').update({ balance: 0 }).eq('user_id', currentUserId).eq('is_default', true);
+            await dataClient.from('transactions').delete().eq('user_id', currentUserId);
+            await dataClient.from('categories').delete().eq('user_id', currentUserId).eq('is_system', false);
+            await dataClient.from('assets').delete().eq('user_id', currentUserId).eq('is_default', false);
+            await dataClient.from('assets').update({ balance: 0 }).eq('user_id', currentUserId).eq('is_default', true);
 
-            await supabase.from('categories').upsert([
+            await dataClient.from('categories').upsert([
                 { user_id: currentUserId, type: 'income', name: 'Salary', color: null, is_system: false },
                 { user_id: currentUserId, type: 'income', name: 'Freelance', color: null, is_system: false },
                 { user_id: currentUserId, type: 'income', name: 'Investment', color: null, is_system: false },
@@ -1434,7 +1434,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 { user_id: currentUserId, type: 'expense', name: 'Internal Transfer', color: '#94a3b8', is_system: true }
             ], { onConflict: 'user_id,type,name_normalized' });
 
-            await supabase.from('assets').upsert([
+            await dataClient.from('assets').upsert([
                 { user_id: currentUserId, name: 'Cash', balance: 0, is_default: true },
                 { user_id: currentUserId, name: 'Bank', balance: 0, is_default: true }
             ], { onConflict: 'user_id,name_normalized' });
@@ -1571,7 +1571,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     };
 
     const deleteTransaction = async (id) => {
-        const { error } = await supabase.from('transactions').delete().eq('id', id);
+        const { error } = await dataClient.from('transactions').delete().eq('id', id);
         if (error) {
             console.error('Failed to delete transaction', error);
             return;
@@ -1648,7 +1648,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         }
         
         if (state.ui.formMode === 'edit') {
-            const { error } = await supabase
+            const { error } = await dataClient
                 .from('transactions')
                 .update({
                     user_id: currentUserId,
@@ -1666,7 +1666,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 return;
             }
         } else {
-            const { error } = await supabase.from('transactions').insert({
+            const { error } = await dataClient.from('transactions').insert({
                 user_id: currentUserId,
                 asset_id: assetId,
                 category_id: categoryRecord.id,
@@ -2036,7 +2036,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const input = e.target.querySelector('input[type="text"]');
             const newCategory = input.value.trim();
             if (newCategory) {
-                const { error } = await supabase.from('categories').insert({
+                const { error } = await dataClient.from('categories').insert({
                     user_id: currentUserId,
                     type: 'income',
                     name: newCategory
@@ -2048,7 +2048,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             const colorInput = e.target.querySelector('input[name="color"]');
             const newCategory = { name: nameInput.value.trim(), color: colorInput.value };
             if (newCategory.name) {
-                const { error } = await supabase.from('categories').insert({
+                const { error } = await dataClient.from('categories').insert({
                     user_id: currentUserId,
                     type: 'expense',
                     name: newCategory.name,
@@ -2065,7 +2065,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                  return;
              }
              if (nextAssetName) {
-                  const { error } = await supabase.from('assets').insert({
+                  const { error } = await dataClient.from('assets').insert({
                       user_id: currentUserId,
                      name: nextAssetName,
                       balance: parseFloat(balanceInput.value) || 0
@@ -2140,7 +2140,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                     closeModal();
                     return;
                 }
-                const { error } = await supabase.from('categories').delete().eq('id', categoryRecord.id);
+                const { error } = await dataClient.from('categories').delete().eq('id', categoryRecord.id);
                 if (error) {
                     console.error('Failed to delete category', error);
                 }
@@ -2216,7 +2216,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 if (nameHasChanged) updates.name = newName;
                 if (type === 'expense' && newColor) updates.color = newColor;
                 if (Object.keys(updates).length > 0) {
-                    const { error } = await supabase.from('categories').update(updates).eq('id', categoryRecord.id);
+                    const { error } = await dataClient.from('categories').update(updates).eq('id', categoryRecord.id);
                     if (error) console.error('Failed to rename category', error);
                     await loadState();
                     render(); // Full re-render to update UI everywhere
@@ -2569,7 +2569,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         });
 
         if (categoriesToCreateMap.size > 0) {
-            const { error } = await supabase.from('categories').insert(Array.from(categoriesToCreateMap.values()));
+            const { error } = await dataClient.from('categories').insert(Array.from(categoriesToCreateMap.values()));
             if (error) {
                 console.error('Failed to create categories', error);
                 setCsvStatus('Failed to create categories during import.', true);
@@ -2604,7 +2604,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 name,
                 balance: 0
             }));
-            const { error } = await supabase.from('assets').insert(assetsToCreate);
+            const { error } = await dataClient.from('assets').insert(assetsToCreate);
             if (error) {
                 console.error('Failed to create assets', error);
                 setCsvStatus('Failed to create assets during import.', true);
@@ -2647,7 +2647,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
         const chunks = chunkArray(transactionsToInsert, 500);
         for (let i = 0; i < chunks.length; i += 1) {
-            const { error } = await supabase.from('transactions').insert(chunks[i]);
+            const { error } = await dataClient.from('transactions').insert(chunks[i]);
             if (error) {
                 console.error('Failed to import transactions', error);
                 setCsvStatus(`Failed to import transactions (batch ${i + 1}).`, true);
@@ -2967,7 +2967,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return;
         }
 
-        const { error } = await supabase.from('transactions').insert([
+        const { error } = await dataClient.from('transactions').insert([
             {
                 user_id: currentUserId,
                 asset_id: fromId,
@@ -3022,7 +3022,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 settingsStatus.className = 'text-xs text-muted-foreground';
             }
 
-            const { error } = await supabase
+            const { error } = await dataClient
                 .from('user_settings')
                 .upsert(
                     {
@@ -3166,7 +3166,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             openModal(modalHTML);
 
             document.getElementById('confirm-asset-delete').addEventListener('click', async () => {
-                const { error } = await supabase.from('assets').delete().eq('id', assetId);
+                const { error } = await dataClient.from('assets').delete().eq('id', assetId);
                 if (error) {
                     console.error('Failed to delete asset', error);
                 }
@@ -3234,7 +3234,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
                 const updatePayload = isProtected
                     ? { balance: newBalance }
                     : { name: newName, balance: newBalance };
-                const { error } = await supabase
+                const { error } = await dataClient
                     .from('assets')
                     .update(updatePayload)
                     .eq('id', assetId);
@@ -3274,4 +3274,5 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
 
     init();
 }
+
 

@@ -187,7 +187,7 @@ export default function AccountSettingsProfilePage() {
           </label>
           <div className="relative mt-1 rounded-md shadow-sm">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <span className="text-muted-foreground sm:text-sm">Rs</span>
+              <span className="text-muted-foreground sm:text-sm">Rs&nbsp;</span>
             </div>
             <input
               id="profile-monthly-savings-target"
@@ -197,7 +197,7 @@ export default function AccountSettingsProfilePage() {
               value={monthlySavingsTarget}
               disabled={isLoading || isSaving}
               onChange={(event) => setMonthlySavingsTarget(event.target.value)}
-              className="block w-full rounded-md border-border bg-card pl-7 pr-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
+              className="block w-full rounded-md border-border bg-card pl-10 pr-3 py-2 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
             />
           </div>
         </div>
@@ -249,7 +249,7 @@ export default function AccountSettingsProfilePage() {
           <button
             type="submit"
             disabled={isLoading || isSaving}
-            className="btn-primary rounded-md px-4 py-2 disabled:cursor-not-allowed disabled:opacity-70"
+            className="btn-primary rounded-md border border-border/70 px-4 py-2 shadow-sm transition-colors hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSaving ? "Saving..." : "Save Settings"}
           </button>

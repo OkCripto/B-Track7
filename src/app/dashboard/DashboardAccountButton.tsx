@@ -37,7 +37,19 @@ export default function DashboardAccountButton() {
         elements: {
           avatarBox:
             "h-8 w-8 rounded-full border border-border bg-card text-foreground shadow-sm transition hover:opacity-90",
-          userButtonPopoverCard: "border border-border bg-card/95 backdrop-blur",
+          userButtonPopoverRootBox:
+            "max-md:!left-auto max-md:!right-2",
+          userButtonPopoverCard:
+            "border border-border bg-card/95 backdrop-blur max-md:ml-auto max-md:w-[15.5rem] max-md:max-w-[calc(100vw-1rem)] max-md:rounded-xl",
+          userButtonPopoverMain: "max-md:p-1",
+          userButtonPopoverActions: "max-md:py-0.5",
+          userButtonPopoverActionButton:
+            "max-md:min-h-8 max-md:rounded-lg max-md:px-2 max-md:py-1.5 max-md:text-[0.9rem]",
+          userButtonPopoverActionButtonIconBox: "max-md:h-6 max-md:w-6",
+          userButtonPopoverCustomItemButton:
+            "max-md:min-h-8 max-md:rounded-lg max-md:px-2 max-md:py-1.5 max-md:text-[0.9rem]",
+          userButtonPopoverCustomItemButtonIconBox: "max-md:h-6 max-md:w-6",
+          userButtonPopoverFooter: "max-md:px-2 max-md:py-2",
           profileSectionPrimaryButton__emailAddresses: "hidden",
           menuButton__emailAddresses: "hidden",
         },
