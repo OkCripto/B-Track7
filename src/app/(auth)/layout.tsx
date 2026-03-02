@@ -27,7 +27,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     },
     {
       title: "Private by design",
-      description: "Supabase Auth keeps access secure and simple.",
+      description: "Clerk keeps access secure with modern authentication flows.",
     },
   ];
 
