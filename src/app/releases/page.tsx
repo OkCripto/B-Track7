@@ -3,7 +3,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { ReleaseNotesScrollParticleField } from "@/components/release-notes/scroll-particle-field";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "../../../convex/_generated/api";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +31,13 @@ export const metadata: Metadata = {
 type RawReleaseNoteRecord = {
   id: string;
   version: string;
-  title: string | null;
+  title: string;
   description: string;
   released_on: string | null;
   improvements: unknown;
   fixes: unknown;
   patches: unknown;
-  created_at: string;
+  created_at: number;
 };
 
 type ReleaseNoteRecord = {
@@ -55,23 +57,13 @@ function parseStringList(value: unknown): string[] {
 }
 
 async function getReleaseNotes(): Promise<ReleaseNoteRecord[]> {
-  const supabase = await createSupabaseServerClient({ allowSetCookies: false });
-  const { data, error } = await supabase
-    .from("release_notes")
-    .select("id, version, title, description, released_on, improvements, fixes, patches, created_at")
-    .order("released_on", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
-
-  if (error || !data) {
-    return [];
-  }
-
-  return (data as RawReleaseNoteRecord[]).map((row) => ({
+  const rows = (await fetchQuery(api.releaseNotes.list_public, {})) as RawReleaseNoteRecord[];
+  return rows.map((row) => ({
     id: row.id,
     version: row.version,
     title: row.title?.trim() || "Product update",
     description: row.description,
-    released_on: row.released_on || row.created_at,
+    released_on: row.released_on || new Date(row.created_at).toISOString(),
     improvements: parseStringList(row.improvements),
     fixes: parseStringList(row.fixes),
     patches: parseStringList(row.patches),
@@ -116,9 +108,8 @@ function ChangeSection({ label, items }: { label: string; items: string[] }) {
 }
 
 export default async function ReleaseNotesPage() {
-  const supabase = await createSupabaseServerClient({ allowSetCookies: false });
-  const { data } = await supabase.auth.getUser();
-  const isSignedIn = Boolean(data?.user);
+  const { userId } = await auth();
+  const isSignedIn = Boolean(userId);
   const primaryHref = isSignedIn ? "/dashboard" : "/signup";
   const releaseNotes = await getReleaseNotes();
 

@@ -4,7 +4,7 @@ import { ParticleTextEffect } from "@/components/landing/particle-text-effect";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { Reveal } from "@/components/landing/reveal";
 import { BackgroundPaths } from "@/components/landing/background-paths";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
 
 const particleWords = ["B-7", "B-Track7", "Budget", "Tracking"];
 
@@ -68,9 +68,8 @@ const faqs = [
 ];
 
 export default async function Home() {
-  const supabase = await createSupabaseServerClient({ allowSetCookies: false });
-  const { data } = await supabase.auth.getUser();
-  const isSignedIn = Boolean(data?.user);
+  const { userId } = await auth();
+  const isSignedIn = Boolean(userId);
   const primaryHref = isSignedIn ? "/dashboard" : "/signup";
   const primaryLabel = isSignedIn ? "Go to dashboard" : "Get started";
   const heroPrimaryLabel = isSignedIn ? "Open dashboard" : "Start tracking";

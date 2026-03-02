@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Playfair_Display, Sora } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
+import { shadcn } from "@clerk/themes";
+import ConvexClientProvider from "@/components/ConvexClientProvider";
 import "./globals.css";
 
 const sora = Sora({
@@ -57,7 +60,26 @@ export default function RootLayout({
       className={`dark ${sora.variable} ${playfair.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <ClerkProvider
+          appearance={{
+            theme: shadcn,
+            cssLayerName: "clerk",
+            variables: {
+              colorPrimary: "var(--accent)",
+              colorText: "var(--foreground)",
+              colorTextSecondary: "var(--muted-foreground)",
+              colorBackground: "var(--card)",
+              colorInputBackground: "var(--background)",
+              colorInputText: "var(--foreground)",
+              borderRadius: "0.75rem",
+              fontFamily: "var(--font-sora)",
+            },
+          }}
+        >
+          <ConvexClientProvider>{children}</ConvexClientProvider>
+        </ClerkProvider>
+      </body>
     </html>
   );
 }
