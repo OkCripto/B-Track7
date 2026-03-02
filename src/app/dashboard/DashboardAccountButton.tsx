@@ -36,7 +36,7 @@ export default function DashboardAccountButton() {
       appearance={{
         elements: {
           avatarBox:
-            "h-9 w-9 rounded-lg border border-border bg-card text-foreground shadow-sm transition hover:opacity-90",
+            "h-8 w-8 rounded-full border border-border bg-card text-foreground shadow-sm transition hover:opacity-90",
           userButtonPopoverCard: "border border-border bg-card/95 backdrop-blur",
           profileSectionPrimaryButton__emailAddresses: "hidden",
           menuButton__emailAddresses: "hidden",
