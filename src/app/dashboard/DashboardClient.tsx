@@ -11,6 +11,7 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
+import { useClerk } from "@clerk/nextjs";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import ExpenseByCategoryGauge from "./analytics/ExpenseByCategoryGauge";
 
 type BudgetDashboardWindow = Window & {
@@ -215,6 +215,7 @@ export default function DashboardClient({
   fontClassName = "",
   initialPage,
 }: DashboardClientProps) {
+  const { signOut } = useClerk();
   const [uiState, dispatch] = useReducer(dashboardUIReducer, initialPage, createInitialUIState);
   const {
     activePage,
@@ -300,9 +301,7 @@ export default function DashboardClient({
   };
 
   const handleSignOut = async () => {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    window.location.assign("/login");
+    await signOut({ redirectUrl: "/login" });
   };
 
   const toggleTheme = () => {

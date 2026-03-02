@@ -1,6 +1,6 @@
 // @ts-nocheck
 /* eslint-disable */
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { createBudgetBrowserClient } from "@/lib/data/browser";
 type BudgetInitOptions = {
   initialPage?: "tracker" | "assets" | "all-transactions" | "analytics" | "settings";
 };
@@ -79,7 +79,7 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
     let state = createDefaultState();
     state.ui.currentPage = resolveInitialPage();
 
-    const supabase = createSupabaseBrowserClient();
+    const supabase = createBudgetBrowserClient();
     let currentUserId = null;
     let lastEmittedUserId = null;
     let lastEmittedUserEmail = null;

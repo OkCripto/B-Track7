@@ -8,7 +8,7 @@ export default function AuthCodeErrorPage() {
           Authentication error
         </p>
         <h2 className="text-3xl font-semibold text-slate-900">
-          We couldn't complete that sign-in
+          We could not complete that sign-in
         </h2>
         <p className="text-sm text-slate-600">
           The authentication link expired or was already used. Please try again.
