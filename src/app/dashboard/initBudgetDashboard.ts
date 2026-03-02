@@ -60,14 +60,13 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         'assets': '/dashboard/assets',
         'all-transactions': '/dashboard/transactions',
         'analytics': '/dashboard/analytics',
-        'settings': '/dashboard/settings'
+        'settings': '/dashboard'
     };
 
     const pageFromPath = (path) => {
         if (path.startsWith('/dashboard/assets')) return 'assets';
         if (path.startsWith('/dashboard/transactions')) return 'all-transactions';
         if (path.startsWith('/dashboard/analytics')) return 'analytics';
-        if (path.startsWith('/dashboard/settings')) return 'settings';
         return 'tracker';
     };
 
@@ -1783,6 +1782,21 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
         if (page !== state.ui.currentPage) {
             setPage(page, { updateHistory: false });
         }
+    });
+
+    window.addEventListener('budget:settings-updated', (event) => {
+        const detail = event?.detail || {};
+        if (detail.monthlySavingsTarget != null) {
+            const parsedTarget = Number(detail.monthlySavingsTarget);
+            if (Number.isFinite(parsedTarget) && parsedTarget >= 0) {
+                state.settings.monthlySavingsTarget = parsedTarget;
+            }
+        }
+        if (detail.useCompactCurrency != null) {
+            state.settings.useCompactCurrency = Boolean(detail.useCompactCurrency);
+        }
+        renderSummary();
+        renderSettings();
     });
 
     if (viewAllTransactionsBtn) {

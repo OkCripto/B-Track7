@@ -11,17 +11,10 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import { useClerk } from "@clerk/nextjs";
 import { dashboardMarkup, type DashboardPage } from "./dashboardMarkup";
 import { initBudgetDashboard } from "./initBudgetDashboard";
+import DashboardAccountButton from "./DashboardAccountButton";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import ExpenseByCategoryGauge from "./analytics/ExpenseByCategoryGauge";
 
@@ -215,7 +208,6 @@ export default function DashboardClient({
   fontClassName = "",
   initialPage,
 }: DashboardClientProps) {
-  const { signOut } = useClerk();
   const [uiState, dispatch] = useReducer(dashboardUIReducer, initialPage, createInitialUIState);
   const {
     activePage,
@@ -236,7 +228,7 @@ export default function DashboardClient({
       assets: "/dashboard/assets",
       "all-transactions": "/dashboard/transactions",
       analytics: "/dashboard/analytics",
-      settings: "/dashboard/settings",
+      settings: "/dashboard",
     }),
     []
   );
@@ -280,6 +272,22 @@ export default function DashboardClient({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleThemeUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ theme?: DashboardTheme }>).detail;
+      if (!detail?.theme || (detail.theme !== "dark" && detail.theme !== "light")) return;
+      dispatch({ type: "setTheme", value: detail.theme });
+    };
+    window.addEventListener("budget:theme-updated", handleThemeUpdate as EventListener);
+    return () => {
+      window.removeEventListener(
+        "budget:theme-updated",
+        handleThemeUpdate as EventListener
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof document === "undefined") return;
     if (!mobileNavOpen) return;
     const { overflow } = document.body.style;
@@ -298,10 +306,6 @@ export default function DashboardClient({
       return;
     }
     window.location.assign(pageRoutes[page]);
-  };
-
-  const handleSignOut = async () => {
-    await signOut({ redirectUrl: "/login" });
   };
 
   const toggleTheme = () => {
@@ -399,97 +403,6 @@ export default function DashboardClient({
                   );
                 })}
               </div>
-              <div className="mt-auto pt-4">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                        "text-sidebar-foreground hover:bg-sidebar-accent/50"
-                      )}
-                      aria-label="My account"
-                    >
-                      <span className="w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="w-5 h-5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20 21a8 8 0 0 0-16 0" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
-                      </span>
-                      <span className="flex-1 text-left whitespace-nowrap">My Account</span>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-4 h-4 text-muted-foreground"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right" align="start" sideOffset={12} className="w-52">
-                    <DropdownMenuItem
-                      onClick={() => handleNavigate("settings")}
-                      className="cursor-pointer gap-2"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-4 h-4 text-muted-foreground"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M12 2v2" />
-                        <path d="M12 20v2" />
-                        <path d="m4.93 4.93 1.41 1.41" />
-                        <path d="m17.66 17.66 1.41 1.41" />
-                        <path d="M2 12h2" />
-                        <path d="M20 12h2" />
-                        <path d="m4.93 19.07 1.41-1.41" />
-                        <path d="m17.66 6.34 1.41-1.41" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleSignOut}
-                      className="cursor-pointer gap-2"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-4 h-4 text-muted-foreground"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
-                      Sign out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
             </nav>
           </aside>
         </div>
@@ -534,42 +447,6 @@ export default function DashboardClient({
                 B-Track7
               </span>
             </div>
-            <button
-              onClick={() => dispatch({ type: "toggleSidebar" })}
-              className={cn(
-                "ml-auto rounded-lg flex items-center justify-center text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200",
-                sidebarCollapsed ? "h-8 w-8" : "h-9 w-9"
-              )}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {sidebarCollapsed ? (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-              )}
-            </button>
           </div>
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-hidden">
             {navItems.map((item) => {
@@ -614,105 +491,16 @@ export default function DashboardClient({
             })}
           </nav>
           <div className="p-3 border-t border-sidebar-border">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                    "text-sidebar-foreground hover:bg-sidebar-accent/50"
-                  )}
-                  aria-label="My account"
-                >
-                  <span className="w-9 h-9 rounded-lg bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 21a8 8 0 0 0-16 0" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
-                  </span>
-                  <span
-                    className={cn(
-                      "flex-1 text-left whitespace-nowrap transition-all duration-300",
-                      sidebarCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
-                    )}
-                  >
-                    My Account
-                  </span>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={cn(
-                      "w-4 h-4 text-muted-foreground transition-all duration-300",
-                      sidebarCollapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100"
-                    )}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="start" sideOffset={12} className="w-52">
-                <DropdownMenuItem
-                  onClick={() => handleNavigate("settings")}
-                  className="cursor-pointer gap-2"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4 text-muted-foreground"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 2v2" />
-                    <path d="M12 20v2" />
-                    <path d="m4.93 4.93 1.41 1.41" />
-                    <path d="m17.66 17.66 1.41 1.41" />
-                    <path d="M2 12h2" />
-                    <path d="M20 12h2" />
-                    <path d="m4.93 19.07 1.41-1.41" />
-                    <path d="m17.66 6.34 1.41-1.41" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleSignOut}
-                  className="cursor-pointer gap-2"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4 text-muted-foreground"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "toggleSidebar" })}
+              className="flex h-10 w-full items-center justify-center rounded-lg border border-sidebar-border/70 text-sm font-semibold text-sidebar-foreground/80 transition hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <span className="font-mono text-base leading-none">
+                {sidebarCollapsed ? ">>" : "<<"}
+              </span>
+            </button>
           </div>
         </aside>
         <div
@@ -869,7 +657,7 @@ export default function DashboardClient({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+                className="hidden h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground md:inline-flex"
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
               >
@@ -931,6 +719,7 @@ export default function DashboardClient({
                 </svg>
                 <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full animate-pulse" />
               </Button>
+              <DashboardAccountButton />
             </div>
           </header>
           <main className="flex-1 p-6 overflow-auto">
