@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 
@@ -41,7 +41,7 @@ function toStringArray(value: unknown) {
   return value.filter((item): item is string => typeof item === "string").map(String);
 }
 
-export const replace_snapshot = mutation({
+export const replace_snapshot_internal = internalMutation({
   args: {
     snapshot: v.any(),
   },
@@ -223,7 +223,7 @@ export const replace_snapshot = mutation({
   },
 });
 
-export const table_counts = query({
+export const table_counts_internal = internalQuery({
   args: {},
   returns: v.object({
     users: v.number(),

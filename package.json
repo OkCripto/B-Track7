@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:vercel": "node scripts/vercel-build.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "cutover:dev-to-prod": "powershell -ExecutionPolicy Bypass -File scripts/cutover/cutover-dev-to-prod.ps1"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.0",
