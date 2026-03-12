@@ -657,7 +657,8 @@ export function initBudgetDashboard(options: BudgetInitOptions = {}) {
             return;
         }
 
-        const change = ((current - previous) / previous) * 100;
+        // Use absolute baseline so moving from negative to positive values is treated as an improvement.
+        const change = ((current - previous) / Math.abs(previous)) * 100;
         const isNeutral = Math.abs(change) < 0.05;
         if (isNeutral) {
             el.textContent = '0.0%';
