@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist_Mono, Playfair_Display, Sora } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/themes";
-import ConvexClientProvider from "@/components/ConvexClientProvider";
 import "./globals.css";
 
 const sora = Sora({
@@ -77,7 +76,7 @@ export default function RootLayout({
             },
           }}
         >
-          <ConvexClientProvider>{children}</ConvexClientProvider>
+          {children}
         </ClerkProvider>
       </body>
     </html>

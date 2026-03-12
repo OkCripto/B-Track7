@@ -37,6 +37,62 @@ type QueryResult<T> = {
   error: { message: string } | null;
 };
 
+type AuthUser = {
+  id: string;
+  email: string | null;
+};
+
+type AuthResult = {
+  user: AuthUser | null;
+  error: { message: string } | null;
+};
+
+const AUTH_CACHE_TTL_MS = 15 * 1000;
+let cachedAuthResult: (AuthResult & { fetchedAt: number }) | null = null;
+let authRequestInFlight: Promise<AuthResult> | null = null;
+
+function getFreshCachedAuthResult(): AuthResult | null {
+  if (!cachedAuthResult) {
+    return null;
+  }
+
+  if (Date.now() - cachedAuthResult.fetchedAt > AUTH_CACHE_TTL_MS) {
+    cachedAuthResult = null;
+    return null;
+  }
+
+  return {
+    user: cachedAuthResult.user,
+    error: cachedAuthResult.error,
+  };
+}
+
+async function fetchAuthUser(): Promise<AuthResult> {
+  try {
+    const response = await fetch("/api/auth/me", {
+      method: "GET",
+      cache: "no-store",
+    });
+    const payload = (await response.json()) as { user: AuthUser | null };
+    if (!response.ok) {
+      return {
+        user: null,
+        error: { message: "Unable to fetch user" },
+      };
+    }
+
+    return {
+      user: payload.user,
+      error: null,
+    };
+  } catch {
+    return {
+      user: null,
+      error: { message: "Unable to fetch user" },
+    };
+  }
+}
+
 class QueryBuilder<T = unknown> implements PromiseLike<QueryResult<T>> {
   private readonly payload: Payload;
 
@@ -116,22 +172,34 @@ export function createBudgetBrowserClient() {
   return {
     auth: {
       async getUser() {
-        try {
-          const response = await fetch("/api/auth/me", {
-            method: "GET",
-            cache: "no-store",
-          });
-          const payload = (await response.json()) as { user: { id: string; email: string | null } | null };
+        const cached = getFreshCachedAuthResult();
+        if (cached) {
           return {
-            data: { user: payload.user },
-            error: response.ok ? null : { message: "Unable to fetch user" },
-          };
-        } catch {
-          return {
-            data: { user: null },
-            error: { message: "Unable to fetch user" },
+            data: { user: cached.user },
+            error: cached.error,
           };
         }
+
+        if (!authRequestInFlight) {
+          authRequestInFlight = fetchAuthUser().finally(() => {
+            authRequestInFlight = null;
+          });
+        }
+
+        const result = await authRequestInFlight;
+        if (!result.error) {
+          cachedAuthResult = {
+            ...result,
+            fetchedAt: Date.now(),
+          };
+        } else {
+          cachedAuthResult = null;
+        }
+
+        return {
+          data: { user: result.user },
+          error: result.error,
+        };
       },
     },
 
