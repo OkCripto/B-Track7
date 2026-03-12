@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { api } from "../../../../../convex/_generated/api";
-import { createAuthedConvexClient } from "@/lib/convex/server";
+import { auth } from "@clerk/nextjs/server";
+import {
+  MISSING_PRIMARY_EMAIL_MESSAGE,
+  resolveAppUserFromClerk,
+} from "@/lib/auth/clerkSupabaseUser";
 
 export async function GET() {
   const authObject = await auth();
@@ -9,23 +11,29 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 200 });
   }
 
-  const user = await currentUser();
-  const client = await createAuthedConvexClient();
-  if (!client) {
-    return NextResponse.json({ user: null }, { status: 200 });
-  }
-
-  await client.mutation(api.users.ensure_current_user, {
-    email: user?.primaryEmailAddress?.emailAddress,
-  });
-
-  return NextResponse.json(
-    {
-      user: {
-        id: authObject.userId,
-        email: user?.primaryEmailAddress?.emailAddress ?? null,
+  try {
+    const appUser = await resolveAppUserFromClerk(authObject);
+    return NextResponse.json(
+      {
+        user: {
+          id: appUser.id,
+          email: appUser.email,
+        },
       },
-    },
-    { status: 200 }
-  );
+      { status: 200 }
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to resolve authenticated user.";
+    const status =
+      message === MISSING_PRIMARY_EMAIL_MESSAGE
+        ? 400
+        : message === "Unauthorized"
+          ? 401
+          : 500;
+    return NextResponse.json(
+      { user: null, error: { message } },
+      { status }
+    );
+  }
 }
