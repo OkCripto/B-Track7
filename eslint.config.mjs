@@ -13,18 +13,18 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "example/**",
-    "convex/_generated/**",
+    "scripts/cutover/out/**",
   ]),
-  {
-    files: ["convex/**/*.ts"],
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
-    },
-  },
   {
     files: ["src/app/dashboard/initBudgetDashboard.ts"],
     rules: {
       "@typescript-eslint/ban-ts-comment": "off",
+    },
+  },
+  {
+    files: ["src/app/api/data/route.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 ]);
